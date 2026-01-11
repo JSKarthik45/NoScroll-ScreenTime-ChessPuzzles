@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "Chess Screen Time - Puzzles",
-    "slug": "chess-screen-time-puzzles",
-    "scheme": "chessscreentime",
-    "version": "1.2.2",
+    "name": "No Scroll: Screen Time - Chess Puzzles",
+    "slug": "no-scroll-screen-time-chess-puzzles",
+    "scheme": "no-scroll-screen-time-chess-puzzles",
+    "version": "0.1.1",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "automatic",
@@ -17,7 +17,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.jskarthik.chessscreentime",
+      "package": "com.jskarthik.noscrollscreentimechesspuzzles",
       "useNextNotificationsApi": true,
       "permissions": [
         "android.permission.FOREGROUND_SERVICE",
@@ -32,7 +32,7 @@
       "eas": {
         "SUPABASE_URL": "https://terpokuczrfsyblwjgjo.supabase.co",
         "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRlcnBva3VjenJmc3libHdqZ2pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1ODExMDcsImV4cCI6MjA4MDE1NzEwN30.9kOWez0CNFh8qILGY4lV9R5uvsOB2MTg34OJ5T_qUKI",
-        "projectId": "6a5398a4-6757-4f9d-9e92-06587cdd9875"
+        "projectId": "e9c42242-cf1f-4e72-9e35-1a663d73334c"
       }
     },
     "plugins": [
@@ -68,6 +68,7 @@
           }
         }
       ]
-    ]
+    ],
+    "owner": "jskarthik"
   }
 }
