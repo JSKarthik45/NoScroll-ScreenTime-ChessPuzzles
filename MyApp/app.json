@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "Chess Screen Time - Puzzles",
+    "slug": "chess-screen-time-puzzles",
+    "scheme": "chessscreentime",
+    "version": "1.2.2",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.jskarthik.chessscreentime",
+      "useNextNotificationsApi": true,
+      "permissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/logo.png"
+    },
+    "extra": {
+      "eas": {
+        "SUPABASE_URL": "https://terpokuczrfsyblwjgjo.supabase.co",
+        "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRlcnBva3VjenJmc3libHdqZ2pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1ODExMDcsImV4cCI6MjA4MDE1NzEwN30.9kOWez0CNFh8qILGY4lV9R5uvsOB2MTg34OJ5T_qUKI",
+        "projectId": "6a5398a4-6757-4f9d-9e92-06587cdd9875"
+      }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#000000",
+          "image": "./assets/logo2.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "smallIcon": "./assets/notificationIcon.png",
+          "color": "#ffffff"
+        }
+      ],
+      [
+        "expo-task-manager",
+        {
+          "backgroundFetch": true
+        }
+      ],
+      "expo-background-task",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "forceDarkAllowed": false
+          }
+        }
+      ]
+    ]
+  }
+}
