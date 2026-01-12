@@ -7,7 +7,7 @@ import CircleButton from '../../components/CircleButton';
 import { OnboardingContext } from '../../navigation/OnboardingContext';
 import { useThemeColors, useThemedStyles } from '../../theme/ThemeContext';
 import SettingsQuickSetup from '../../components/SettingsQuickSetup';
-import { loadPreferences, savePreferences } from '../../storage/preferences';
+import { loadPreferences, savePreferences, setBlocked as persistSetBlocked } from '../../storage/preferences';
 
 const { width } = Dimensions.get('window');
 
@@ -71,6 +71,7 @@ export default function OnboardingPager() {
   const goNext = async () => {
     const next = index + 1;
     if (PAGES[index]?.key === 'setup') {
+      try { await persistSetBlocked(blocked); } catch {}
       await savePreferences({ problemTarget });
     }
     if (next < PAGES.length) {
@@ -153,8 +154,8 @@ export default function OnboardingPager() {
           if (item.key === 'solution') {
             return (
               <View style={[styles.page, { width, backgroundColor: colors.background }]}> 
-                  <Text style={[styles.title, { color: colors.primary }]}>Turn no‑scroll hours into progress</Text>
-                  <Text style={[styles.subtitle, { color: colors.muted }]}>Pick the times you want less scrolling. We’ll nudge you then to open this app and solve chess puzzles instead.</Text>
+                  <Text style={[styles.title, { color: colors.primary }]}>Turn scrolling into progress</Text>
+                  <Text style={[styles.subtitle, { color: colors.muted }]}>Choose which apps to block. We’ll nudge you to open this app and solve chess puzzles instead.</Text>
                   {/* Single row of chess pieces below text */}
                   <View style={{ marginTop: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
                     <Animated.View style={{ transform: [{ translateY: floatUpDownA }] }}>

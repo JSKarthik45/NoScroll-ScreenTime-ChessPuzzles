@@ -4,7 +4,6 @@ import { useThemeColors, useThemedStyles } from '../../theme/ThemeContext';
 import BoardPager from '../../components/BoardPager';
 import { getPuzzlesData } from '../../services/getData';
 import { getLatestPuzzleId, setLatestPuzzleId } from '../../storage/preferences';
-import { startNoScrollReminder, stopNoScrollReminder } from '../../services/notifications';
 
 const styleFactory = (colors) => StyleSheet.create({
   container: { flex: 1, alignItems: 'stretch', justifyContent: 'center', paddingHorizontal: 0, paddingVertical: 0, backgroundColor: colors.background },
@@ -28,8 +27,7 @@ export default function HomeScreen({ mode = 'Trending' }) {
 
   React.useEffect(() => {
     let mounted = true;
-    // Start periodic reminder when screen is mounted
-    startNoScrollReminder(2 * 60 * 1000); // 2 minutes
+    // no-scroll periodic reminder removed
     (async () => {
       try {
         const [storedT, storedP] = await Promise.all([
@@ -74,7 +72,7 @@ export default function HomeScreen({ mode = 'Trending' }) {
         setPracticeData(Array.isArray(p) ? p : []);
       } catch {}
     })();
-    return () => { mounted = false; stopNoScrollReminder(); };
+    return () => { mounted = false; };
   }, []);
 
   const handleIndexChange = React.useCallback(async (tableName, index) => {
