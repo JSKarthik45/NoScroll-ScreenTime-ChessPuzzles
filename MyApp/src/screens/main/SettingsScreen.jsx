@@ -182,7 +182,7 @@ export default function SettingsScreen() {
   return (
     <>
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.sectionTitle}>Choose apps to block</Text>
+      <Text style={styles.sectionTitle}>Blocked Apps</Text>
       {SOCIAL_APPS.map((item) => {
         const isOn = !!blocked[item.key];
         return (
@@ -201,7 +201,7 @@ export default function SettingsScreen() {
         );
       })}
 
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Daily puzzle goal</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Daily Puzzle Goal</Text>
       <View style={styles.pillRow}>
         {[1, 3, 5, 10, 20].map(n => {
           const active = problemTarget === n;
@@ -259,7 +259,7 @@ export default function SettingsScreen() {
         })}
       </View>
 
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Our other products and services</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Our Other Products and Services</Text>
       <View style={styles.linkList}>
         <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech')}>
           <Ionicons name="planet" size={22} color={colors.text} />
