@@ -425,14 +425,25 @@ export default function OnboardingPager() {
               <View style={[styles.pageAction, { width, backgroundColor: colors.background }]}> 
                 <Text style={[styles.title, { color: colors.primary }]}>Make it work on your phone</Text>
                 <Text style={[styles.subtitle, styles.subtitleAction, { color: colors.muted }]}>
-                  Some devices (like Xiaomi/Redmi) need extra steps so we can reliably block apps in the background.
+                  Some devices (like Xiaomi/Redmi) need one extra step so blocking keeps working in the background.
                 </Text>
                 <Text style={[styles.content, { textAlign: 'left' }]}>
-                  On Xiaomi/Redmi:
-                  {"\n"}
-                  1. Open system Settings → Apps → No Scroll Screen Time Chess Puzzles.{"\n"}
-                  2. Enable "Display pop-up windows while running in the background" (or similar).{"\n"}
-                  3. Turn on Autostart and set Battery to "No restrictions" if available.
+                  1. Allow this app under "Display over other apps" (Special app access) so we can show puzzles instead of the feed.{"\n"}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    try {
+                      PermissionModule?.openOverlaySettings();
+                    } catch (e) {
+                      console.warn('Failed to open display-over-other-apps settings', e);
+                    }
+                  }}
+                  style={{ marginTop: 0, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>Open "Display over other apps" (if available)</Text>
+                </TouchableOpacity>
+                <Text style={[styles.content, { marginTop: 10, textAlign: 'left' }]}>
+                  Xiaomi/Redmi tip: in App info → Other permissions, enable "Display pop-up windows while running in the background".
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
@@ -442,14 +453,10 @@ export default function OnboardingPager() {
                       console.warn('Failed to open app settings', e);
                     }
                   }}
-                  style={{ marginTop: 18, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
+                  style={{ marginTop: 10, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
                 >
                   <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>Open app settings</Text>
                 </TouchableOpacity>
-                <Text style={[styles.content, { marginTop: 18, textAlign: 'left' }]}>
-                  These are optional but strongly recommended on Xiaomi/Redmi and some other Android phones so blocking keeps working even
-                  when the app is in the background.
-                </Text>
               </View>
             );
           }
