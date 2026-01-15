@@ -1,5 +1,5 @@
 import React, { useRef, useState, useContext, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, ScrollView, Animated, TouchableOpacity, Platform, Alert, AppState, NativeModules } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Dimensions, ScrollView, Animated, TouchableOpacity, Platform, Alert, AppState, NativeModules, PermissionsAndroid, Linking } from 'react-native';
 import { FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,10 +19,11 @@ const HOOK_PAGES = [
   { key: 'motivation' },
 ];
 
-// Collection B: The Action (setup first, then permissions, then pricing placeholder)
+// Collection B: The Action (setup first, then core permissions, then OEM help, then pricing placeholder)
 const ACTION_PAGES = [
   { key: 'setup' },
   { key: 'permissions' },
+  { key: 'oemPermissions' },
   { key: 'pricing' },
 ];
 
@@ -85,6 +86,16 @@ const styleFactory = (colors) => StyleSheet.create({
   content: { fontSize: 16, color: colors.text, textAlign: 'center', marginTop: 12},
   permissionContent: { fontSize: 16, color: colors.text, textAlign: 'left'},
 });
+
+const ensureNotificationPermission = async () => {
+  if (Platform.OS === 'android' && Platform.Version >= 33) {
+    try {
+      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    } catch (e) {
+      // ignore; service will still attempt to start
+    }
+  }
+};
 
 export default function OnboardingPager() {
   const colors = useThemeColors();
@@ -187,7 +198,7 @@ export default function OnboardingPager() {
   const isLastActionPage = phase === 'action' && index === ACTION_PAGES.length - 1;
   const fabIcon = isLastHookPage || isLastActionPage ? 'checkmark' : 'arrow-forward';
 
-  const showFullWidthButton = phase === 'action' && (index === 1 || index === 2);
+  const showFullWidthButton = phase === 'action' && (index === 1 || index === 2 || index === 3);
 
   const canContinueFromPermissions = usageGranted && overlayGranted;
 
@@ -208,6 +219,10 @@ export default function OnboardingPager() {
       if (PermissionModule && typeof PermissionModule.syncBlockedList === 'function') {
         PermissionModule.syncBlockedList(blockedJson);
       }
+
+      // Ensure we have POST_NOTIFICATIONS permission on Android 13+
+      // so the foreground service notification can be shown reliably.
+      await ensureNotificationPermission();
 
       // Start native foreground monitoring service so blocking works
       // even when the app is in the background.
@@ -405,6 +420,40 @@ export default function OnboardingPager() {
             );
           }
 
+          if (item.key === 'oemPermissions') {
+            return (
+              <View style={[styles.pageAction, { width, backgroundColor: colors.background }]}> 
+                <Text style={[styles.title, { color: colors.primary }]}>Make it work on your phone</Text>
+                <Text style={[styles.subtitle, styles.subtitleAction, { color: colors.muted }]}>
+                  Some devices (like Xiaomi/Redmi) need extra steps so we can reliably block apps in the background.
+                </Text>
+                <Text style={[styles.content, { textAlign: 'left' }]}>
+                  On Xiaomi/Redmi:
+                  {"\n"}
+                  1. Open system Settings → Apps → No Scroll Screen Time Chess Puzzles.{"\n"}
+                  2. Enable "Display pop-up windows while running in the background" (or similar).{"\n"}
+                  3. Turn on Autostart and set Battery to "No restrictions" if available.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    try {
+                      Linking.openSettings();
+                    } catch (e) {
+                      console.warn('Failed to open app settings', e);
+                    }
+                  }}
+                  style={{ marginTop: 18, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>Open app settings</Text>
+                </TouchableOpacity>
+                <Text style={[styles.content, { marginTop: 18, textAlign: 'left' }]}>
+                  These are optional but strongly recommended on Xiaomi/Redmi and some other Android phones so blocking keeps working even
+                  when the app is in the background.
+                </Text>
+              </View>
+            );
+          }
+
           if (item.key === 'setup') {
             return (
               <ScrollView
@@ -478,6 +527,18 @@ export default function OnboardingPager() {
         </TouchableOpacity>
       )}
       {phase === 'action' && index === 2 && (
+        <TouchableOpacity
+          onPress={() => {
+            const next = 3;
+            setIndex(next);
+            listRef.current?.scrollToIndex({ index: next, animated: true });
+          }}
+          style={[styles.fullButton, { bottom: insets.bottom + 24, backgroundColor: colors.primary }]}
+        >
+          <Text style={[styles.fullButtonText, { color: colors.text }]}>Continue</Text>
+        </TouchableOpacity>
+      )}
+      {phase === 'action' && index === 3 && (
         <TouchableOpacity onPress={startTrial} style={[styles.fullButton, { bottom: insets.bottom + 24, backgroundColor: colors.primary }]}> 
           <Text style={[styles.fullButtonText, { color: colors.text }]}>Start free trial</Text>
         </TouchableOpacity>

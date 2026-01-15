@@ -38,4 +38,18 @@ yarn-error.*
 
 # generated native folders
 /ios
-/android
+
+
+# Ignore the heavy build outputs
+android/build/
+android/app/build/
+android/.gradle/
+android/app/.cxx/
+
+# Ignore local environment files (contains YOUR local SDK path)
+android/local.properties
+
+# Keep the source code but ignore keys
+android/**/*.keystore
+!android/**/debug.keystore
+android/*.jks
