@@ -7,6 +7,7 @@ import CircleButton from '../../components/CircleButton';
 import { OnboardingContext } from '../../navigation/OnboardingContext';
 import { useThemeColors, useThemedStyles } from '../../theme/ThemeContext';
 import SettingsQuickSetup from '../../components/SettingsQuickSetup';
+import { startUsagePolling } from '../../services/usageLogger';
 import { loadPreferences, savePreferences, setBlocked as persistSetBlocked } from '../../storage/preferences';
 
 const { width } = Dimensions.get('window');
@@ -198,7 +199,31 @@ export default function OnboardingPager() {
   };
 
   const startTrial = async () => {
-    // placeholder: start trial flow here
+    console.log('[Onboarding] startTrial pressed with blocked map:', blocked);
+
+    try {
+      // Sync the latest blocked configuration to native so it can be used
+      // by any background monitoring or future services.
+      const blockedJson = JSON.stringify(blocked || {});
+      if (PermissionModule && typeof PermissionModule.syncBlockedList === 'function') {
+        PermissionModule.syncBlockedList(blockedJson);
+      }
+
+      // Start native foreground monitoring service so blocking works
+      // even when the app is in the background.
+      if (PermissionModule && typeof PermissionModule.startMonitoring === 'function') {
+        PermissionModule.startMonitoring();
+      }
+
+      // Start foreground polling for usage events while the app is open.
+      startUsagePolling(blocked, (pkg) => {
+        console.log(`[Onboarding] Blocking access to ${pkg}`);
+        // Later: navigate to a dedicated puzzle screen here.
+      });
+    } catch (e) {
+      console.error('Error finishing onboarding / starting usage polling:', e);
+    }
+
     await completeOnboarding();
   };
 

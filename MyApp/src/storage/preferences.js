@@ -1,4 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NativeModules } from 'react-native';
+
+const { PermissionModule } = NativeModules || {};
 
 const KEYS = {
   blockedApps: 'dd_blocked_apps',
@@ -65,6 +68,13 @@ export async function incrementTodayPuzzleCount() {
   try { await AsyncStorage.setItem(PUZZLE_COUNTS_KEY, JSON.stringify(next)); } catch {}
   // Notify listeners
   emitPuzzleCountChanged({ date: today, count: next[today] });
+  // Also sync today's progress to native so foreground service can
+  // decide whether blocking is still needed.
+  try {
+    if (PermissionModule && typeof PermissionModule.syncTodayPuzzleCount === 'function') {
+      PermissionModule.syncTodayPuzzleCount(today, next[today]);
+    }
+  } catch {}
   return next[today];
 }
 
@@ -120,6 +130,15 @@ export async function savePreferences({ problemTarget, fromTime, toTime, theme }
       tasks.push(AsyncStorage.setItem(KEYS.themeKey, theme.key || 'custom'));
     }
     await Promise.all(tasks);
+
+    // Sync daily goal to native so the foreground monitor can
+    // stop blocking once the target is reached.
+    try {
+      if (PermissionModule && typeof PermissionModule.syncProblemTarget === 'function') {
+        const target = problemTarget ?? 5;
+        PermissionModule.syncProblemTarget(target);
+      }
+    } catch {}
   } catch (e) {
     // ignore
   }
@@ -127,7 +146,15 @@ export async function savePreferences({ problemTarget, fromTime, toTime, theme }
 
 export async function setBlocked(blocked) {
   try {
-    await AsyncStorage.setItem(KEYS.blockedApps, JSON.stringify(blocked || {}));
+    const json = JSON.stringify(blocked || {});
+    await AsyncStorage.setItem(KEYS.blockedApps, json);
+    // Keep native foreground monitor in sync so changes to blocked
+    // apps take effect immediately.
+    try {
+      if (PermissionModule && typeof PermissionModule.syncBlockedList === 'function') {
+        PermissionModule.syncBlockedList(json);
+      }
+    } catch {}
   } catch {}
 }
 
