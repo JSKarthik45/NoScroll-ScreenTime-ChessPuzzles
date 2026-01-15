@@ -1,5 +1,5 @@
 import React, { useRef, useState, useContext, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, ScrollView, Animated, TouchableOpacity, Linking, Platform, Alert, PermissionsAndroid, AppState } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Dimensions, ScrollView, Animated, TouchableOpacity, Platform, Alert, AppState, NativeModules } from 'react-native';
 import { FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -82,6 +82,7 @@ const styleFactory = (colors) => StyleSheet.create({
     fontWeight: '600',
   },
   content: { fontSize: 16, color: colors.text, textAlign: 'center', marginTop: 12},
+  permissionContent: { fontSize: 16, color: colors.text, textAlign: 'left'},
 });
 
 export default function OnboardingPager() {
@@ -92,10 +93,13 @@ export default function OnboardingPager() {
   const prevIndexRef = useRef(0);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState('hook'); // 'hook' | 'action'
-  const [permissionStep, setPermissionStep] = useState('grant'); // 'grant' | 'confirm'
+  const [usageGranted, setUsageGranted] = useState(false);
+  const [overlayGranted, setOverlayGranted] = useState(false);
   const { completeOnboarding } = useContext(OnboardingContext);
   const [blocked, setBlocked] = useState({});
   const [problemTarget, setProblemTarget] = useState(5);
+
+  const { PermissionModule } = NativeModules;
 
   const activePages = phase === 'hook' ? HOOK_PAGES : ACTION_PAGES;
 
@@ -184,20 +188,10 @@ export default function OnboardingPager() {
 
   const showFullWidthButton = phase === 'action' && (index === 1 || index === 2);
 
-  const openUsageSettings = async () => {
-    try {
-      await Linking.openSettings();
-    } catch (e) {
-      Alert.alert('Open Settings', 'Unable to open settings.');
-    }
-  };
+  const canContinueFromPermissions = usageGranted && overlayGranted;
 
-  const handleGrantPress = async () => {
-    if (permissionStep === 'grant') {
-      await openUsageSettings();
-      return;
-    }
-    // confirm: advance to pricing page
+  const handlePermissionsCta = () => {
+    if (!canContinueFromPermissions) return;
     const next = 2;
     setIndex(next);
     listRef.current?.scrollToIndex({ index: next, animated: true });
@@ -208,40 +202,20 @@ export default function OnboardingPager() {
     await completeOnboarding();
   };
 
-  // Check whether any relevant "media" permission is already granted.
-  const checkMediaPermission = async () => {
-    if (Platform.OS !== 'android') return false;
-    try {
-      const perms = [];
-      // Android 13+ uses READ_MEDIA_* permissions; older versions use READ_EXTERNAL_STORAGE
-      if (Platform.Version >= 33) {
-        perms.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES);
-        perms.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO);
-        perms.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO);
-      } else {
-        perms.push(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
-      }
-
-      for (const p of perms) {
-        if (!p) continue;
-        const ok = await PermissionsAndroid.check(p);
-        if (ok) return true;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  };
-
-  // When entering the permissions page (or when app resumes), verify current permissions
+  // When entering the permissions page (or when app resumes), verify overlay & usage permissions
   useEffect(() => {
-    let mounted = true;
-
     const update = async () => {
-      if (phase === 'action' && index === 1) {
-        const granted = await checkMediaPermission();
-        if (!mounted) return;
-        setPermissionStep(granted ? 'confirm' : 'grant');
+      if (phase === 'action' && index === 1 && PermissionModule) {
+        try {
+          const [overlay, usage] = await Promise.all([
+            PermissionModule.checkOverlayPermission(),
+            PermissionModule.checkUsageStatsPermission(),
+          ]);
+          setOverlayGranted(!!overlay);
+          setUsageGranted(!!usage);
+        } catch (e) {
+          // leave as-is on error
+        }
       }
     };
 
@@ -251,8 +225,10 @@ export default function OnboardingPager() {
       if (state === 'active') update();
     });
 
-    return () => { mounted = false; sub.remove(); };
-  }, [phase, index]);
+    return () => {
+      sub.remove();
+    };
+  }, [phase, index, PermissionModule]);
 
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top }]} edges={['top', 'left', 'right']}>
@@ -371,16 +347,34 @@ export default function OnboardingPager() {
                 <Text style={[styles.subtitle, styles.subtitleAction, { color: colors.muted }]}>
                   To block distractions, we require special access permissions.
                 </Text>
-                <Text style = {[styles.content]}>
-                  To block selected apps, Android asks you to grant Usage Access permission. This lets the app see which app is currently
-                  open so it can show you a chess puzzle instead of your chosen distractions.
-                </Text>
-                <Text style={[styles.content]}>
-                  We do not read your messages, passwords, or personal content. Only foreground app usage events are used to know when your
-                  chosen apps are opened.
-                </Text>
-                <Text style={[styles.content]}>
-                  You can change these permissions or turn blocking off anytime in Android system settings.
+                <View style={{ marginTop: 0 }}>
+                  <Text style={[styles.permissionContent]}>USAGE ACCESS</Text>
+                  <Text style={[styles.permissionContent]}>
+                    Lets the app know which app is currently open so it can show you a chess puzzle instead of your chosen distractions.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => PermissionModule?.openUsageSettings()}
+                    style={{ marginTop: 10, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, alignSelf: 'flex-center', backgroundColor: colors.primary }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>Grant usage access permission</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ marginTop: 5 }}>
+                  <Text style={[styles.permissionContent]}>OVERLAY</Text>
+                  <Text style={[styles.permissionContent]}>
+                    Allows the app to appear on top when a blocked app is opened, so you see your puzzle instead of the feed.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => PermissionModule?.openOverlaySettings()}
+                    style={{ marginTop: 10, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, alignSelf: 'flex-center', backgroundColor: colors.primary }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>Grant overlay permission</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.content, { marginTop: 24, textAlign: 'left' }]}>
+                  We do not read your messages, passwords, or personal content. You can change these permissions or turn blocking off
+                  anytime in Android system settings.
                 </Text>
               </View>
             );
@@ -409,7 +403,7 @@ export default function OnboardingPager() {
               <View style={[styles.pageAction, { width, backgroundColor: colors.background }]}> 
                 <Text style={[styles.title, { color: colors.primary }]}>Free now, simple later</Text>
                 <Text style={[styles.subtitle, styles.subtitleAction, { color: colors.muted }]}>
-                  Unlock full access to your potential and reclaim your hourse from enless scrolling.
+                  Unlock full access to your potential and reclaim your hours from endless scrolling.
                 </Text>
                 <Text style={[styles.content]}>
                   During early access, everything is free so you can focus on building the habit.
@@ -441,8 +435,21 @@ export default function OnboardingPager() {
 
       {/* Full-width action buttons for Action pages (permissions / pricing) */}
       {phase === 'action' && index === 1 && (
-        <TouchableOpacity onPress={handleGrantPress} style={[styles.fullButton, { bottom: insets.bottom + 24, backgroundColor: colors.primary }]}> 
-          <Text style={[styles.fullButtonText, { color: colors.text }]}>{permissionStep === 'grant' ? 'Grant permissions' : "Continue"}</Text>
+        <TouchableOpacity
+          onPress={handlePermissionsCta}
+          disabled={!canContinueFromPermissions}
+          style={[
+            styles.fullButton,
+            {
+              bottom: insets.bottom + 24,
+              backgroundColor: canContinueFromPermissions ? colors.primary : colors.border,
+              opacity: canContinueFromPermissions ? 1 : 0.6,
+            },
+          ]}
+        >
+          <Text style={[styles.fullButtonText, { color: colors.text }]}>
+            {canContinueFromPermissions ? 'Continue' : 'Grant permissions to proceed'}
+          </Text>
         </TouchableOpacity>
       )}
       {phase === 'action' && index === 2 && (
