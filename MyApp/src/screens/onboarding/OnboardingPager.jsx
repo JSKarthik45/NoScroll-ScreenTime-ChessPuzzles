@@ -425,38 +425,26 @@ export default function OnboardingPager() {
               <View style={[styles.pageAction, { width, backgroundColor: colors.background }]}> 
                 <Text style={[styles.title, { color: colors.primary }]}>Make it work on your phone</Text>
                 <Text style={[styles.subtitle, styles.subtitleAction, { color: colors.muted }]}>
-                  Some devices (like Xiaomi/Redmi) need one extra step so blocking keeps working in the background.
+                  Some devices (like Xiaomi/Redmi or OnePlus) need one extra step so blocking keeps working in the background.
                 </Text>
                 <Text style={[styles.content, { textAlign: 'left' }]}>
-                  1. Allow this app under "Display over other apps" (Special app access) so we can show puzzles instead of the feed.{"\n"}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    try {
-                      PermissionModule?.openOverlaySettings();
-                    } catch (e) {
-                      console.warn('Failed to open display-over-other-apps settings', e);
-                    }
-                  }}
-                  style={{ marginTop: 0, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>Open "Display over other apps" (if available)</Text>
-                </TouchableOpacity>
-                <Text style={[styles.content, { marginTop: 10, textAlign: 'left' }]}>
-                  Xiaomi/Redmi tip: in App info → Other permissions, enable "Display pop-up windows while running in the background".
+                  1. If you have a Xiaomi/Redmi phone: open App info → Other permissions and turn on "Display pop-up windows while running in the background" for this app.{"\n"}
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
                     try {
                       Linking.openSettings();
                     } catch (e) {
-                      console.warn('Failed to open app settings', e);
+                      console.warn('Failed to open app settings for Xiaomi/Redmi instructions', e);
                     }
                   }}
-                  style={{ marginTop: 10, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
+                  style={{ marginTop: 0, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
                 >
-                  <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>Open app settings</Text>
+                  <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>For Xiaomi/Redmi: Open app info</Text>
                 </TouchableOpacity>
+                <Text style={[styles.content, { marginTop: 15, textAlign: 'left' }]}>
+                  2. If you have a OnePlus phone: go to Settings → Apps & notifications → Special access → Display pop-ups while in background, find this app, and allow it so we can show puzzles while running in the background.
+                </Text>
               </View>
             );
           }
