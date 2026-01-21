@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Animated, Dimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PUZZLE_COUNTS_KEY, getPuzzleCounts, incrementTodayPuzzleCount, onPuzzleCountChanged } from '../../storage/preferences';
+import { PUZZLE_COUNTS_KEY, getPuzzleCounts, incrementTodayPuzzleCount, onPuzzleCountChanged, loadPreferences } from '../../storage/preferences';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, useThemedStyles } from '../../theme/ThemeContext';
+import { useIsFocused } from '@react-navigation/native';
 
 // Use shared storage key/helpers for daily puzzle counts
 const COUNTS_KEY = PUZZLE_COUNTS_KEY; // { [YYYY-MM-DD]: number }
@@ -42,6 +43,32 @@ const styleFactory = (colors) => {
 		legendRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
 		legendLabel: { fontSize: 12, color: colors.muted, marginRight: 8 },
 		legendBox: { width: 16, height: 16, borderRadius: 4, marginRight: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+		rewardCard: {
+			marginTop: 20,
+			borderRadius: 16,
+			paddingVertical: 14,
+			paddingHorizontal: 14,
+			backgroundColor: colors.primary,
+			flexDirection: 'row',
+			alignItems: 'center',
+			shadowColor: colors.primary,
+			shadowOpacity: 0.25,
+			shadowRadius: 10,
+			shadowOffset: { width: 0, height: 4 },
+			elevation: 4,
+		},
+		rewardIconWrap: {
+			width: 44,
+			height: 44,
+			borderRadius: 22,
+			backgroundColor: 'rgba(0,0,0,0.18)',
+			alignItems: 'center',
+			justifyContent: 'center',
+			marginRight: 12,
+		},
+		rewardTextWrap: { flex: 1 },
+		rewardTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+		rewardSubtitle: { marginTop: 4, fontSize: 13, color: colors.text },
 		actionsRow: { position: 'absolute', right: 16, bottom: 16 },
 		fab: { backgroundColor: colors.primary, width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', elevation: 2 },
 	});
@@ -50,7 +77,9 @@ const styleFactory = (colors) => {
 export default function StreakScreen() {
 	const colors = useThemeColors();
 	const styles = useThemedStyles(styleFactory);
+	const isFocused = useIsFocused();
 	const [counts, setCounts] = useState({}); // { date: number }
+	const [dailyGoal, setDailyGoal] = useState(5);
 	const [animFlame] = useState(() => new Animated.Value(0)); // burst on change
 	const [flicker] = useState(() => new Animated.Value(0)); // quick jitter
 	const [bob] = useState(() => new Animated.Value(0)); // slow up/down
@@ -61,6 +90,8 @@ export default function StreakScreen() {
 		(async () => {
 			const loaded = await getPuzzleCounts();
 			setCounts(loaded);
+			const pref = await loadPreferences();
+			setDailyGoal(pref.problemTarget ?? 5);
 		})();
 		// Subscribe to live increments from gameplay
 		const unsubscribe = onPuzzleCountChanged(({ date, count }) => {
@@ -68,6 +99,17 @@ export default function StreakScreen() {
 		});
 		return () => unsubscribe();
 	}, []);
+
+	// Refresh daily goal whenever the Streak tab gains focus
+	useEffect(() => {
+		if (!isFocused) return;
+		(async () => {
+			try {
+				const pref = await loadPreferences();
+				setDailyGoal(pref.problemTarget ?? 5);
+			} catch {}
+		})();
+	}, [isFocused]);
 
 	// Compute weeks (12) x 7 days heatmap data ending today
 	const weeks = useMemo(() => {
@@ -171,6 +213,13 @@ export default function StreakScreen() {
 		setCounts(prev => ({ ...prev, [today]: count }));
 	}, []);
 
+	const puzzlesLeftToday = useMemo(() => {
+		const today = isoDay();
+		const done = counts[today] || 0;
+		const left = Math.max(0, (dailyGoal || 0) - done);
+		return left;
+	}, [counts, dailyGoal]);
+
 	return (
 		<View style={styles.root}>
 			<View style={styles.centerWrap}>
@@ -251,6 +300,23 @@ export default function StreakScreen() {
 					<Text style={[styles.legendLabel, { marginLeft: 4 }]}>More</Text>
 				</View>
 			</View>
+
+			<View style={styles.rewardCard}>
+				<View style={styles.rewardIconWrap}>
+					<Ionicons name="trophy" size={26} color={colors.text} />
+				</View>
+				<View style={styles.rewardTextWrap}>
+					<Text style={styles.rewardTitle}>
+						{puzzlesLeftToday === 0 ? 'Goal crushed 🎯' : puzzlesLeftToday === 1 ? 'Checkmate in one' : 'Building momentum'}
+					</Text>
+					<Text style={styles.rewardSubtitle}>
+						{puzzlesLeftToday === 0
+							? 'Social apps are unlocked. You earned this.'
+							: `Solve ${puzzlesLeftToday} more to unlock your apps.`}
+					</Text>
+				</View>
+			</View>
+			
 			{/*
 			<View style={styles.actionsRow}>
 				<Pressable onPress={incrementToday} style={styles.fab} accessibilityLabel="Add one puzzle to today">

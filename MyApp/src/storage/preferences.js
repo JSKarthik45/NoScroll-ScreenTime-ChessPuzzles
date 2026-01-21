@@ -12,6 +12,7 @@ const KEYS = {
   themeKey: 'dd_theme_key',
   chessUsername: 'dd_chess_username',
   chessTacticsRating: 'dd_chess_tactics_rating',
+  blockedUntoggleCount: 'dd_blocked_untoggle_count',
 };
 
 // Current puzzle bucket start id per table (used for id windows)
@@ -39,6 +40,23 @@ export async function setLatestPuzzleId(tableName, id) {
     if (!key) return;
     if (id == null) return;
     await AsyncStorage.setItem(key, String(id));
+  } catch {}
+}
+
+export async function getBlockedUntoggleCount() {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.blockedUntoggleCount);
+    if (!raw) return 0;
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function setBlockedUntoggleCount(value) {
+  try {
+    await AsyncStorage.setItem(KEYS.blockedUntoggleCount, String(value ?? 0));
   } catch {}
 }
 

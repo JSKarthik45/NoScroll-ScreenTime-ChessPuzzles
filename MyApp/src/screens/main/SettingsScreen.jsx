@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Linking, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemedStyles, useThemeColors } from '../../theme/ThemeContext';
-import { loadPreferences, savePreferences, setTheme, setChessUsername as saveChessUsername, setChessTacticsRating, clearChessImport, setBlocked as persistSetBlocked } from '../../storage/preferences';
+import { loadPreferences, savePreferences, setTheme, setChessUsername as saveChessUsername, setChessTacticsRating, clearChessImport, setBlocked as persistSetBlocked, getBlockedUntoggleCount, setBlockedUntoggleCount } from '../../storage/preferences';
 import { useThemeController } from '../../theme/ThemeContext';
 
 // No app toggles; replaced by time window selection UI
@@ -99,6 +99,7 @@ const styleFactory = (colors) => StyleSheet.create({
 
 export default function SettingsScreen() {
   const [blocked, setBlocked] = useState({});
+  const [blockedUntoggleCount, setBlockedUntoggleCountState] = useState(0);
   const [problemTarget, setProblemTarget] = useState(5);
   const [chessUsername, setChessUsername] = useState('');
   const [themeKey, setThemeKey] = useState('classic');
@@ -107,6 +108,8 @@ export default function SettingsScreen() {
   const themeController = useThemeController();
   const colors = useThemeColors();
   const styles = useThemedStyles(styleFactory);
+  const MAX_UNTOGGLES = 3;
+  const remainingUntoggles = Math.max(0, MAX_UNTOGGLES - (blockedUntoggleCount || 0));
 
   // Load saved preferences on mount
   useEffect(() => {
@@ -120,6 +123,10 @@ export default function SettingsScreen() {
       }
       if (pref.chessUsername) setChessUsername(pref.chessUsername);
       if (pref.chessTacticsRating != null) setTacticsRating(pref.chessTacticsRating);
+
+      // Load how many times the user has already un-blocked apps
+      const storedUntoggles = await getBlockedUntoggleCount();
+      setBlockedUntoggleCountState(typeof storedUntoggles === 'number' && Number.isFinite(storedUntoggles) ? storedUntoggles : 0);
     })();
   }, []);
   const importRating = async () => {
@@ -139,10 +146,26 @@ export default function SettingsScreen() {
   };
 
   const toggleApp = (key) => {
-    const next = { ...(blocked || {}), [key]: !(blocked || {})[key] };
+    const currentBlocked = blocked || {};
+    const isCurrentlyBlocked = !!currentBlocked[key];
+
+    // If user tries to un-block (turn off) but has already used
+    // the maximum number of untoggles, ignore the action.
+    if (isCurrentlyBlocked && blockedUntoggleCount >= MAX_UNTOGGLES) {
+      return;
+    }
+
+    const next = { ...currentBlocked, [key]: !isCurrentlyBlocked };
     setBlocked(next);
     // persist asynchronously; don't block UI
     try { persistSetBlocked(next); } catch {}
+
+    // Count only untoggles: when moving from blocked -> unblocked
+    if (isCurrentlyBlocked && !next[key]) {
+      const nextCount = blockedUntoggleCount + 1;
+      setBlockedUntoggleCountState(nextCount);
+      try { setBlockedUntoggleCount(nextCount); } catch {}
+    }
   };
 
   const themeOptions = [
@@ -194,12 +217,25 @@ export default function SettingsScreen() {
             <Switch
               value={isOn}
               onValueChange={() => toggleApp(item.key)}
+              disabled={isOn && blockedUntoggleCount >= MAX_UNTOGGLES}
               trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor={colors.text}
             />
           </View>
         );
       })}
+      {remainingUntoggles > 0 ? (
+        <Text style={styles.helperText}>
+          <Text style={{ fontWeight: '900', color: colors.text }}>Only {remainingUntoggles} unblocks left. </Text>
+          Once used, unblocking will be disabled to keep you on track.
+        </Text>
+      ) : (
+        <Text style={styles.helperText}>
+          Your blocked apps list is now frozen because the maximum number of unblocks has been reached. 
+          {"\n"}
+          Uninstalling NoScroll to bypass these limits would result in yet another failed attempt to reclaim your time from social media.
+        </Text>
+      )}
 
       <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Daily Puzzle Goal</Text>
       <View style={styles.pillRow}>
@@ -212,8 +248,7 @@ export default function SettingsScreen() {
           );
         })}
       </View>
-      <Text style={styles.helperText}>If you haven’t hit your {problemTarget}-puzzle goal, we’ll nudge you to finish instead of scrolling.</Text>
-
+      <Text style={styles.helperText}>Selected social media apps will be blocked until you solve your daily goal of {problemTarget} puzzles.</Text>
       <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Tactics Rating from Chess.com</Text>
       {tacticsRating != null ? (
         <>

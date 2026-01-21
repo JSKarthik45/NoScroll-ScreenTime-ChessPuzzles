@@ -396,7 +396,7 @@ export default function OnboardingPager() {
                     onPress={() => PermissionModule?.openUsageSettings()}
                     style={{ marginTop: 10, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, alignSelf: 'flex-center', backgroundColor: colors.primary }}
                   >
-                    <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>Grant usage access permission</Text>
+                    <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>Grant usage access permission</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -409,7 +409,7 @@ export default function OnboardingPager() {
                     onPress={() => PermissionModule?.openOverlaySettings()}
                     style={{ marginTop: 10, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, alignSelf: 'flex-center', backgroundColor: colors.primary }}
                   >
-                    <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>Grant overlay permission</Text>
+                    <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>Grant overlay permission</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={[styles.content, { marginTop: 24, textAlign: 'left' }]}>
@@ -440,7 +440,7 @@ export default function OnboardingPager() {
                   }}
                   style={{ marginTop: 0, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
                 >
-                  <Text style={{ color: colors.text, fontWeight: '600', textAlign: 'center' }}>For Xiaomi/Redmi: Open app info</Text>
+                  <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>For Xiaomi/Redmi: Open app info</Text>
                 </TouchableOpacity>
                 <Text style={[styles.content, { marginTop: 15, textAlign: 'left' }]}>
                   2. If you have a OnePlus phone: go to Settings → Apps & notifications → Special access → Display pop-ups while in background, find this app, and allow it so we can show puzzles while running in the background.
@@ -516,7 +516,7 @@ export default function OnboardingPager() {
             },
           ]}
         >
-          <Text style={[styles.fullButtonText, { color: colors.text }]}>
+          <Text style={[styles.fullButtonText, { color: canContinueFromPermissions ? 'white' : 'black' }]}>
             {canContinueFromPermissions ? 'Continue' : 'Grant permissions to proceed'}
           </Text>
         </TouchableOpacity>
@@ -530,12 +530,12 @@ export default function OnboardingPager() {
           }}
           style={[styles.fullButton, { bottom: insets.bottom + 24, backgroundColor: colors.primary }]}
         >
-          <Text style={[styles.fullButtonText, { color: colors.text }]}>Continue</Text>
+          <Text style={[styles.fullButtonText, { color: 'white' }]}>Continue</Text>
         </TouchableOpacity>
       )}
       {phase === 'action' && index === 3 && (
         <TouchableOpacity onPress={startTrial} style={[styles.fullButton, { bottom: insets.bottom + 24, backgroundColor: colors.primary }]}> 
-          <Text style={[styles.fullButtonText, { color: colors.text }]}>Start free trial</Text>
+          <Text style={[styles.fullButtonText, { color: 'white' }]}>Start free trial</Text>
         </TouchableOpacity>
       )}
 
