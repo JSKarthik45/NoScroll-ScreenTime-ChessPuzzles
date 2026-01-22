@@ -8,7 +8,7 @@ const EMPTY_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
 // We will preload the NEXT board instead of a blank transition
 
-export default function BoardPager({ boards, transitionMode = 'blank', tableName = null, onIndexChange = null }) {
+export default function BoardPager({ boards, transitionMode = 'blank', tableName = null, onIndexChange = null, initialIndex = 0 }) {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight() / 4;
   const headerHeight = useHeaderHeight() / 4;
@@ -19,10 +19,20 @@ export default function BoardPager({ boards, transitionMode = 'blank', tableName
 
   // Respond to length changes even if the array reference is stable
   const source = useMemo(() => (Array.isArray(boards) ? boards : []), [boards, boards?.length]);
-  const [currentIdx, setCurrentIdx] = useState(0);
+  const [currentIdx, setCurrentIdx] = useState(initialIndex);
   const [commitPending, setCommitPending] = useState(false);
   const commitBoardRef = useRef(null);
   const [pendingAdvance, setPendingAdvance] = useState(false);
+  const hasInitialized = useRef(false);
+
+  // Initialize to the saved index when data first loads
+  useEffect(() => {
+    if (source.length > 0 && !hasInitialized.current && initialIndex > 0) {
+      const clampedIdx = Math.min(initialIndex, source.length - 1);
+      setCurrentIdx(clampedIdx);
+      hasInitialized.current = true;
+    }
+  }, [source.length, initialIndex]);
 
   // Build two-page buffer with stable slot keys so panels don't remount
   const pages = useMemo(() => {

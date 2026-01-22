@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { useThemeColors, useThemedStyles } from '../../theme/ThemeContext';
 import BoardPager from '../../components/BoardPager';
 import { getPuzzlesData } from '../../services/getData';
-import { getLatestPuzzleId, setLatestPuzzleId } from '../../storage/preferences';
+import { getLatestPuzzleId, setLatestPuzzleId, getBatchIndex, setBatchIndex } from '../../storage/preferences';
 
 const styleFactory = (colors) => StyleSheet.create({
   container: { flex: 1, alignItems: 'stretch', justifyContent: 'center', paddingHorizontal: 0, paddingVertical: 0, backgroundColor: colors.background },
@@ -19,6 +19,8 @@ export default function HomeScreen({ mode = 'Trending' }) {
   const [practiceBucketStart, setPracticeBucketStart] = React.useState(null);
   const [trendPrefetchedNext, setTrendPrefetchedNext] = React.useState(false);
   const [practicePrefetchedNext, setPracticePrefetchedNext] = React.useState(false);
+  const [trendInitialIndex, setTrendInitialIndex] = React.useState(0);
+  const [practiceInitialIndex, setPracticeInitialIndex] = React.useState(0);
 
   const DEFAULT_BUCKET_START = 10000;
   const BUCKET_SIZE = 1000;
@@ -30,9 +32,11 @@ export default function HomeScreen({ mode = 'Trending' }) {
     // no-scroll periodic reminder removed
     (async () => {
       try {
-        const [storedT, storedP] = await Promise.all([
+        const [storedT, storedP, storedIdxT, storedIdxP] = await Promise.all([
           getLatestPuzzleId('TrendingPuzzles'),
           getLatestPuzzleId('PracticePuzzles'),
+          getBatchIndex('TrendingPuzzles'),
+          getBatchIndex('PracticePuzzles'),
         ]);
         let bucketT = (typeof storedT === 'number' && Number.isFinite(storedT)) ? storedT : DEFAULT_BUCKET_START;
         let bucketP = (typeof storedP === 'number' && Number.isFinite(storedP)) ? storedP : DEFAULT_BUCKET_START;
@@ -70,6 +74,11 @@ export default function HomeScreen({ mode = 'Trending' }) {
         setPracticeBucketStart(bucketP);
         setTrendData(Array.isArray(t) ? t : []);
         setPracticeData(Array.isArray(p) ? p : []);
+        // Set the initial index within the batch (clamped to data length)
+        const tLen = Array.isArray(t) ? t.length : 0;
+        const pLen = Array.isArray(p) ? p.length : 0;
+        setTrendInitialIndex(Math.min(storedIdxT || 0, Math.max(0, tLen - 1)));
+        setPracticeInitialIndex(Math.min(storedIdxP || 0, Math.max(0, pLen - 1)));
       } catch {}
     })();
     return () => { mounted = false; };
@@ -77,6 +86,9 @@ export default function HomeScreen({ mode = 'Trending' }) {
 
   const handleIndexChange = React.useCallback(async (tableName, index) => {
     try {
+      // Always persist the current index within the batch
+      setBatchIndex(tableName, index);
+
       if (tableName === 'TrendingPuzzles') {
         if (trendBucketStart == null) return;
         const currentLength = trendData.length;
@@ -102,6 +114,8 @@ export default function HomeScreen({ mode = 'Trending' }) {
           setTrendPrefetchedNext(false);
           // Persist so next session starts from the new bucket range
           setLatestPuzzleId('TrendingPuzzles', newBucketStart);
+          // Reset batch index to 0 since we're starting a new batch
+          setBatchIndex('TrendingPuzzles', 0);
         }
       } else if (tableName === 'PracticePuzzles') {
         if (practiceBucketStart == null) return;
@@ -125,6 +139,8 @@ export default function HomeScreen({ mode = 'Trending' }) {
           setPracticeBucketStart(newBucketStart);
           setPracticePrefetchedNext(false);
           setLatestPuzzleId('PracticePuzzles', newBucketStart);
+          // Reset batch index to 0 since we're starting a new batch
+          setBatchIndex('PracticePuzzles', 0);
         }
       }
     } catch {}
@@ -148,6 +164,7 @@ export default function HomeScreen({ mode = 'Trending' }) {
           transitionMode="preload"
           tableName="TrendingPuzzles"
           onIndexChange={(index) => handleIndexChange('TrendingPuzzles', index)}
+          initialIndex={trendInitialIndex}
         />
       ) : (
         // Add other mode components here
@@ -156,6 +173,7 @@ export default function HomeScreen({ mode = 'Trending' }) {
           transitionMode="preload"
           tableName="PracticePuzzles"
           onIndexChange={(index) => handleIndexChange('PracticePuzzles', index)}
+          initialIndex={practiceInitialIndex}
         />
       )}
     </View>

@@ -85,7 +85,6 @@ export default function BoardPanel({
   const [bannerText, setBannerText] = useState(text);
   const [bannerVariant, setBannerVariant] = useState('default'); // default|correct|incorrect
   const shakeAnim = useRef(new Animated.Value(0)).current;
-  const [confettiItems, setConfettiItems] = useState([]); // poured confetti pieces
   const lastPanelTap = useRef(0);
   const correctSoundRef = useRef(null);
   const [soundLoaded, setSoundLoaded] = useState(false);
@@ -189,7 +188,6 @@ export default function BoardPanel({
       }
       setBannerVariant('correct');
       setBannerText('Correct');
-      launchConfetti();
       //playCorrectSound();
     } else {
       setBannerVariant('incorrect');
@@ -215,29 +213,6 @@ export default function BoardPanel({
       Animated.timing(shakeAnim, { toValue: 1, duration: 70, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
     ]).start();
-  };
-
-  const launchConfetti = () => {
-    const palette = [colors.success, '#ffd700', colors.primary, colors.secondary];
-    const items = [];
-    const total = 70; // dense vertical pour across full width
-    for (let i = 0; i < total; i++) {
-      const id = Date.now() + '-' + i;
-      const x = Math.random() * windowWidth; // span full width
-      const size = 6 + Math.random() * 10;
-      const fall = new Animated.Value(0);
-      const rotate = new Animated.Value(0);
-      const sway = new Animated.Value(0);
-      const clr = palette[i % palette.length];
-      items.push({ id, x, size, fall, rotate, sway, clr });
-      Animated.parallel([
-        Animated.timing(fall, { toValue: 1, duration: 1900 + Math.random()*900, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(rotate, { toValue: 1, duration: 1600 + Math.random()*800, easing: Easing.linear, useNativeDriver: true }),
-        Animated.timing(sway, { toValue: 1, duration: 1900 + Math.random()*900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ]).start();
-    }
-    setConfettiItems(items);
-    setTimeout(() => setConfettiItems([]), 200);
   };
 
   const shakeTranslate = shakeAnim.interpolate({ inputRange: [-1,1], outputRange: [-6,6] });
@@ -309,36 +284,6 @@ export default function BoardPanel({
         >
           <Ionicons name="heart" size={120} color={colors.error} />
         </Animated.View>
-      )}
-      {confettiItems.length > 0 && (
-        <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
-          {confettiItems.map(item => {
-            const translateY = item.fall.interpolate({ inputRange: [0,1], outputRange: [-40, windowHeight] });
-            const translateX = item.sway.interpolate({ inputRange: [0,1], outputRange: [0, (Math.random()*80 - 40)] });
-            const rotateDeg = item.rotate.interpolate({ inputRange: [0,1], outputRange: ['0deg','900deg'] });
-            const opacity = item.fall.interpolate({ inputRange: [0,1], outputRange: [1, 0] });
-            return (
-              <Animated.View
-                key={item.id}
-                style={{
-                  position: 'absolute',
-                  left: item.x,
-                  top: -50,
-                  width: item.size,
-                  height: item.size,
-                  backgroundColor: item.clr,
-                  borderRadius: 3,
-                  transform: [
-                    { translateY },
-                    { translateX },
-                    { rotate: rotateDeg },
-                  ],
-                  opacity,
-                }}
-              />
-            );
-          })}
-        </View>
       )}
     </Animated.View>
   );

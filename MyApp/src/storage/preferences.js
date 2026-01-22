@@ -21,6 +21,12 @@ export const LATEST_KEYS = {
   PracticePuzzles: 'dd_latest_practice_id',
 };
 
+// Current puzzle index within a batch (so user resumes where they left off)
+export const BATCH_INDEX_KEYS = {
+  TrendingPuzzles: 'dd_batch_index_trending',
+  PracticePuzzles: 'dd_batch_index_practice',
+};
+
 export async function getLatestPuzzleId(tableName) {
   try {
     const key = LATEST_KEYS[tableName];
@@ -40,6 +46,27 @@ export async function setLatestPuzzleId(tableName, id) {
     if (!key) return;
     if (id == null) return;
     await AsyncStorage.setItem(key, String(id));
+  } catch {}
+}
+
+export async function getBatchIndex(tableName) {
+  try {
+    const key = BATCH_INDEX_KEYS[tableName];
+    if (!key) return 0;
+    const raw = await AsyncStorage.getItem(key);
+    const num = raw ? Number(raw) : 0;
+    return Number.isFinite(num) && num >= 0 ? num : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function setBatchIndex(tableName, index) {
+  try {
+    const key = BATCH_INDEX_KEYS[tableName];
+    if (!key) return;
+    if (index == null || index < 0) return;
+    await AsyncStorage.setItem(key, String(index));
   } catch {}
 }
 
