@@ -9,7 +9,7 @@ import { loadPreferences } from './src/storage/preferences';
 import { setThemePrimarySecondary } from './src/theme/colors';
 import { ThemeProvider, useThemeColors, useThemeController } from './src/theme/ThemeContext';
 
-// Note: getPuzzlesData import removed - not used in this file
+import getPuzzlesData from './src/services/getData';
 
 const { PermissionModule } = NativeModules || {};
 
