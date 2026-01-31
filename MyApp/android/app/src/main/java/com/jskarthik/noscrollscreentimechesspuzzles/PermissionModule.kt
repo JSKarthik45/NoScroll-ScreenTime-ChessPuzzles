@@ -118,6 +118,17 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
   @ReactMethod
   fun startMonitoring() {
     val context = reactApplicationContext
+    
+    // Mark blocking as enabled and that user has onboarded
+    val prefs = context.getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
+    prefs.edit()
+      .putBoolean("blocking_enabled", true)
+      .putBoolean("has_onboarded", true)
+      .apply()
+    
+    // Schedule midnight reset alarm for daily blocking reset
+    MidnightResetReceiver.scheduleMidnightAlarm(context)
+    
     val intent = Intent(context, ForegroundMonitorService::class.java)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       context.startForegroundService(intent)
@@ -126,10 +137,103 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
     }
   }
 
+  /**
+   * Resume monitoring on app startup. This respects the current blocking state
+   * and checks if a new day has started (resets blocking if so).
+   * Does NOT force-enable blocking if it was disabled (e.g., goal was completed).
+   */
+  @ReactMethod
+  fun resumeMonitoring() {
+    val context = reactApplicationContext
+    val prefs = context.getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
+    
+    // Only resume if user has completed onboarding
+    val hasOnboarded = prefs.getBoolean("has_onboarded", false)
+    if (!hasOnboarded) return
+    
+    // Check if it's a new day - if so, reset blocking
+    val storedDate = prefs.getString("today_date", null)
+    val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+    
+    if (storedDate != today) {
+      // New day: reset count and enable blocking
+      prefs.edit()
+        .putString("today_date", today)
+        .putInt("today_count", 0)
+        .putBoolean("blocking_enabled", true)
+        .apply()
+    }
+    
+    // Schedule/reschedule midnight alarm
+    MidnightResetReceiver.scheduleMidnightAlarm(context)
+    
+    // Start the foreground service (it will check blocking_enabled internally)
+    val blockingEnabled = prefs.getBoolean("blocking_enabled", false)
+    if (blockingEnabled) {
+      val intent = Intent(context, ForegroundMonitorService::class.java)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        context.startForegroundService(intent)
+      } else {
+        context.startService(intent)
+      }
+    }
+  }
+
   @ReactMethod
   fun stopMonitoring() {
     val context = reactApplicationContext
+    
+    // Mark blocking as disabled
+    val prefs = context.getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
+    prefs.edit().putBoolean("blocking_enabled", false).apply()
+    
     val intent = Intent(context, ForegroundMonitorService::class.java)
     context.stopService(intent)
+  }
+
+  /**
+   * Enable blocking (e.g., at midnight for a new day).
+   * This sets the blocking_enabled flag and starts the monitoring service.
+   */
+  @ReactMethod
+  fun enableBlocking() {
+    val context = reactApplicationContext
+    val prefs = context.getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
+    prefs.edit().putBoolean("blocking_enabled", true).apply()
+    
+    val intent = Intent(context, ForegroundMonitorService::class.java)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      context.startForegroundService(intent)
+    } else {
+      context.startService(intent)
+    }
+  }
+
+  /**
+   * Disable blocking (e.g., when daily goal is completed).
+   */
+  @ReactMethod
+  fun disableBlocking() {
+    val context = reactApplicationContext
+    val prefs = context.getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
+    prefs.edit().putBoolean("blocking_enabled", false).apply()
+  }
+
+  /**
+   * Check if blocking is currently enabled.
+   */
+  @ReactMethod
+  fun isBlockingEnabled(promise: Promise) {
+    val prefs = reactApplicationContext.getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
+    promise.resolve(prefs.getBoolean("blocking_enabled", false))
+  }
+
+  /**
+   * Schedule the midnight alarm for daily reset.
+   * Should be called on app startup to ensure alarm is scheduled.
+   */
+  @ReactMethod
+  fun scheduleMidnightReset() {
+    MidnightResetReceiver.scheduleMidnightAlarm(reactApplicationContext)
   }
 }

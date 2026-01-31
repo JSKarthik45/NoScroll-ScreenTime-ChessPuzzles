@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Animated, Dimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PUZZLE_COUNTS_KEY, getPuzzleCounts, incrementTodayPuzzleCount, onPuzzleCountChanged, loadPreferences } from '../../storage/preferences';
+import { PUZZLE_COUNTS_KEY, getPuzzleCounts, incrementTodayPuzzleCount, onPuzzleCountChanged, loadPreferences, getLocalDateString } from '../../storage/preferences';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, useThemedStyles } from '../../theme/ThemeContext';
 import { useIsFocused } from '@react-navigation/native';
@@ -9,7 +9,8 @@ import { useIsFocused } from '@react-navigation/native';
 // Use shared storage key/helpers for daily puzzle counts
 const COUNTS_KEY = PUZZLE_COUNTS_KEY; // { [YYYY-MM-DD]: number }
 
-const isoDay = (d = new Date()) => d.toISOString().substring(0, 10);
+// Use local timezone for date string (YYYY-MM-DD) so day changes at local midnight
+const isoDay = getLocalDateString;
 const addDays = (date, days) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 
 const hexToRgb = (hex) => {
@@ -126,7 +127,7 @@ export default function StreakScreen() {
 			out.push(col);
 		}
 		return out;
-	}, [counts]);
+	}, []);
 
 	const streakDays = useMemo(() => {
 		let s = 0;

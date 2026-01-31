@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { View, NativeModules, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppNavigator from './src/navigation/AppNavigator';
 import OnboardingNavigator from './src/navigation/OnboardingNavigator';
@@ -9,7 +9,9 @@ import { loadPreferences } from './src/storage/preferences';
 import { setThemePrimarySecondary } from './src/theme/colors';
 import { ThemeProvider, useThemeColors, useThemeController } from './src/theme/ThemeContext';
 
-import getPuzzlesData from './src/services/getData';
+// Note: getPuzzlesData import removed - not used in this file
+
+const { PermissionModule } = NativeModules || {};
 
 // Toggle to force showing onboarding in development
 // Set to true during development to always see onboarding
@@ -35,6 +37,21 @@ export default function App() {
         if (prefs.theme) {
           setThemePrimarySecondary(prefs.theme.primary, prefs.theme.secondary);
           setInitialTheme(prefs.theme);
+        }
+        
+        // If user has onboarded and on Android, ensure midnight alarm is scheduled
+        // and check if blocking should be enabled for today
+        if (value === 'true' && Platform.OS === 'android' && PermissionModule) {
+          // Schedule midnight reset alarm (idempotent - updates existing alarm)
+          if (typeof PermissionModule.scheduleMidnightReset === 'function') {
+            PermissionModule.scheduleMidnightReset();
+          }
+          
+          // Resume monitoring - this respects current blocking state
+          // and resets blocking if it's a new day
+          if (typeof PermissionModule.resumeMonitoring === 'function') {
+            PermissionModule.resumeMonitoring();
+          }
         }
       } catch (e) {
         setHasOnboarded(false);

@@ -6,6 +6,28 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import BoardPanel from './BoardPanel';
 const EMPTY_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
+// Memoized page item component - defined outside to prevent re-creation
+const PageItem = memo(function PageItem({ item, height, onAdvance }) {
+  const board = item.board || {};
+  return (
+    <View style={{ height, overflow: 'hidden' }}>
+      <BoardPanel
+        key={board.key}
+        fen={board.fen}
+        turnText={board.turnText}
+        borderRadius={10}
+        heightFraction={1}
+        text={board.text}
+        correctMove={board.correctMove}
+        onAdvance={onAdvance}
+        autoAdvance={false}
+        boardId={board.key}
+        onMarkViewed={null}
+      />
+    </View>
+  );
+});
+
 // We will preload the NEXT board instead of a blank transition
 
 export default function BoardPager({ boards, transitionMode = 'blank', tableName = null, onIndexChange = null, initialIndex = 0 }) {
@@ -65,27 +87,6 @@ export default function BoardPager({ boards, transitionMode = 'blank', tableName
       { slotKey: 'slot-1', board: { key: `blank-${next?.key ?? currentIdx+1}`, fen: EMPTY_FEN, turnText: '', text: '', correctMove: null } },
     ];
   }, [source, currentIdx, commitPending, transitionMode]);
-
-  const PageItem = memo(function PageItem({ item, height, onAdvance }) {
-    const board = item.board || {};
-    return (
-      <View style={{ height, overflow: 'hidden' }}>
-        <BoardPanel
-          key={board.key}
-          fen={board.fen}
-          turnText={board.turnText}
-          borderRadius={10}
-          heightFraction={1}
-          text={board.text}
-          correctMove={board.correctMove}
-          onAdvance={onAdvance}
-          autoAdvance={false}
-          boardId={board.key}
-          onMarkViewed={null}
-        />
-      </View>
-    );
-  });
 
   const advance = useCallback(() => {
     if (source.length < 1) return;

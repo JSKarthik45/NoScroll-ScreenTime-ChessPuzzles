@@ -102,8 +102,16 @@ function emitPuzzleCountChanged(payload) {
   });
 }
 
+// Get local date string (YYYY-MM-DD) based on user's timezone, not UTC
+export function getLocalDateString(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export async function incrementTodayPuzzleCount() {
-  const today = new Date().toISOString().substring(0, 10);
+  const today = getLocalDateString();
   let counts = {};
   try {
     const raw = await AsyncStorage.getItem(PUZZLE_COUNTS_KEY);
@@ -120,6 +128,19 @@ export async function incrementTodayPuzzleCount() {
       PermissionModule.syncTodayPuzzleCount(today, next[today]);
     }
   } catch {}
+  
+  // Check if daily goal is met and disable blocking if so
+  try {
+    const targetRaw = await AsyncStorage.getItem(KEYS.problemTarget);
+    const problemTarget = targetRaw ? Number(targetRaw) : 5;
+    if (next[today] >= problemTarget) {
+      // Disable blocking when goal is reached
+      if (PermissionModule && typeof PermissionModule.disableBlocking === 'function') {
+        PermissionModule.disableBlocking();
+      }
+    }
+  } catch {}
+  
   return next[today];
 }
 
