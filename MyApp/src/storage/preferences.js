@@ -13,6 +13,8 @@ const KEYS = {
   chessUsername: 'dd_chess_username',
   chessTacticsRating: 'dd_chess_tactics_rating',
   blockedUntoggleCount: 'dd_blocked_untoggle_count',
+  masterBlockingOff: 'dd_master_blocking_off',
+  masterBlockingDisableCount: 'dd_master_blocking_disable_count',
 };
 
 // Current puzzle bucket start id per table (used for id windows)
@@ -84,6 +86,39 @@ export async function getBlockedUntoggleCount() {
 export async function setBlockedUntoggleCount(value) {
   try {
     await AsyncStorage.setItem(KEYS.blockedUntoggleCount, String(value ?? 0));
+  } catch {}
+}
+
+// ── Master blocking toggle ──
+export async function getMasterBlockingOff() {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.masterBlockingOff);
+    return raw === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export async function setMasterBlockingOff(value) {
+  try {
+    await AsyncStorage.setItem(KEYS.masterBlockingOff, value ? 'true' : 'false');
+  } catch {}
+}
+
+export async function getMasterBlockingDisableCount() {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.masterBlockingDisableCount);
+    if (!raw) return 0;
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function setMasterBlockingDisableCount(value) {
+  try {
+    await AsyncStorage.setItem(KEYS.masterBlockingDisableCount, String(value ?? 0));
   } catch {}
 }
 
