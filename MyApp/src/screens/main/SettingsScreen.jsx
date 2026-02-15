@@ -1,11 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Linking, Switch, NativeModules, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Linking, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemedStyles, useThemeColors } from '../../theme/ThemeContext';
-import { loadPreferences, savePreferences, setTheme, setChessUsername as saveChessUsername, setChessTacticsRating, clearChessImport, setBlocked as persistSetBlocked, getBlockedUntoggleCount, setBlockedUntoggleCount, getMasterBlockingOff, setMasterBlockingOff, getMasterBlockingDisableCount, setMasterBlockingDisableCount } from '../../storage/preferences';
+import { loadPreferences, savePreferences, setTheme, setChessUsername as saveChessUsername, setChessTacticsRating, clearChessImport, setBlocked as persistSetBlocked, getBlockedUntoggleCount, setBlockedUntoggleCount } from '../../storage/preferences';
 import { useThemeController } from '../../theme/ThemeContext';
-
-const { PermissionModule } = NativeModules || {};
 
 // No app toggles; replaced by time window selection UI
 
@@ -102,8 +100,6 @@ const styleFactory = (colors) => StyleSheet.create({
 export default function SettingsScreen() {
   const [blocked, setBlocked] = useState({});
   const [blockedUntoggleCount, setBlockedUntoggleCountState] = useState(0);
-  const [masterBlockingEnabled, setMasterBlockingEnabled] = useState(true);
-  const [masterDisableCount, setMasterDisableCount] = useState(0);
   const [problemTarget, setProblemTarget] = useState(5);
   const [chessUsername, setChessUsername] = useState('');
   const [themeKey, setThemeKey] = useState('classic');
@@ -114,9 +110,6 @@ export default function SettingsScreen() {
   const styles = useThemedStyles(styleFactory);
   const MAX_UNTOGGLES = 3;
   const remainingUntoggles = Math.max(0, MAX_UNTOGGLES - (blockedUntoggleCount || 0));
-  const MAX_MASTER_DISABLES = 3;
-  const remainingMasterDisables = Math.max(0, MAX_MASTER_DISABLES - (masterDisableCount || 0));
-  const masterToggleLocked = masterDisableCount >= MAX_MASTER_DISABLES;
 
   // Load saved preferences on mount
   useEffect(() => {
@@ -134,12 +127,6 @@ export default function SettingsScreen() {
       // Load how many times the user has already un-blocked apps
       const storedUntoggles = await getBlockedUntoggleCount();
       setBlockedUntoggleCountState(typeof storedUntoggles === 'number' && Number.isFinite(storedUntoggles) ? storedUntoggles : 0);
-
-      // Load master blocking toggle state
-      const isOff = await getMasterBlockingOff();
-      const disableCount = await getMasterBlockingDisableCount();
-      setMasterBlockingEnabled(!isOff);
-      setMasterDisableCount(typeof disableCount === 'number' && Number.isFinite(disableCount) ? disableCount : 0);
     })();
   }, []);
   const importRating = async () => {
@@ -156,37 +143,6 @@ export default function SettingsScreen() {
       }
     } catch {}
     finally { setImporting(false); }
-  };
-
-  const toggleMasterBlocking = () => {
-    if (masterBlockingEnabled) {
-      // User wants to DISABLE blocking — costs one disable use
-      if (masterDisableCount >= MAX_MASTER_DISABLES) return;
-      const nextCount = masterDisableCount + 1;
-      setMasterBlockingEnabled(false);
-      setMasterDisableCount(nextCount);
-      setMasterBlockingOff(true);
-      setMasterBlockingDisableCount(nextCount);
-      // Stop native blocking
-      if (Platform.OS === 'android' && PermissionModule) {
-        if (typeof PermissionModule.disableBlocking === 'function') {
-          PermissionModule.disableBlocking();
-        }
-        if (typeof PermissionModule.stopMonitoring === 'function') {
-          PermissionModule.stopMonitoring();
-        }
-      }
-    } else {
-      // User wants to RE-ENABLE blocking — always allowed
-      setMasterBlockingEnabled(true);
-      setMasterBlockingOff(false);
-      // Re-enable native blocking
-      if (Platform.OS === 'android' && PermissionModule) {
-        if (typeof PermissionModule.enableBlocking === 'function') {
-          PermissionModule.enableBlocking();
-        }
-      }
-    }
   };
 
   const toggleApp = (key) => {
@@ -249,35 +205,7 @@ export default function SettingsScreen() {
   return (
     <>
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.sectionTitle}>App Blocking</Text>
-      <View style={styles.row}>
-        <View style={styles.rowLeft}>
-          <Ionicons name={masterBlockingEnabled ? 'shield-checkmark' : 'shield-outline'} size={28} color={masterBlockingEnabled ? colors.primary : colors.muted} />
-          <Text style={styles.rowLabel}>{masterBlockingEnabled ? 'Blocking is ON' : 'Blocking is OFF'}</Text>
-        </View>
-        <Switch
-          value={masterBlockingEnabled}
-          onValueChange={toggleMasterBlocking}
-          disabled={!masterBlockingEnabled && masterToggleLocked}
-          trackColor={{ false: colors.border, true: colors.primary }}
-          thumbColor={colors.text}
-        />
-      </View>
-      {!masterToggleLocked ? (
-        <Text style={styles.helperText}>
-          {masterBlockingEnabled
-            ? `You can disable blocking ${remainingMasterDisables} more time${remainingMasterDisables !== 1 ? 's' : ''}.`
-            : 'Blocking is currently disabled. You can re-enable it anytime.'}
-        </Text>
-      ) : (
-        <Text style={styles.helperText}>
-          {masterBlockingEnabled
-            ? 'Blocking is permanently enabled. You have used all disable attempts.'
-            : 'You have used all disable attempts. Re-enable blocking to lock it permanently.'}
-        </Text>
-      )}
-
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Blocked Apps</Text>
+      <Text style={styles.sectionTitle}>Blocked Apps</Text>
       {SOCIAL_APPS.map((item) => {
         const isOn = !!blocked[item.key];
         return (
