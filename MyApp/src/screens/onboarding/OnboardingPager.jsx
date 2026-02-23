@@ -22,6 +22,7 @@ const HOOK_PAGES = [
 // Collection B: The Action (setup first, then core permissions, then OEM help, then pricing placeholder)
 const ACTION_PAGES = [
   { key: 'setup' },
+  { key: 'dataDisclosure' },
   { key: 'permissions' },
   { key: 'oemPermissions' },
   { key: 'pricing' },
@@ -198,20 +199,18 @@ export default function OnboardingPager() {
   const isLastActionPage = phase === 'action' && index === ACTION_PAGES.length - 1;
   const fabIcon = isLastHookPage || isLastActionPage ? 'checkmark' : 'arrow-forward';
 
-  const showFullWidthButton = phase === 'action' && (index === 1 || index === 2 || index === 3);
+  const showFullWidthButton = phase === 'action' && (index === 1 || index === 2 || index === 3 || index === 4);
 
   const canContinueFromPermissions = usageGranted && overlayGranted;
 
   const handlePermissionsCta = () => {
     if (!canContinueFromPermissions) return;
-    const next = 2;
+    const next = 3;
     setIndex(next);
     listRef.current?.scrollToIndex({ index: next, animated: true });
   };
 
   const startTrial = async () => {
-    console.log('[Onboarding] startTrial pressed with blocked map:', blocked);
-
     try {
       // Sync the latest blocked configuration to native so it can be used
       // by any background monitoring or future services.
@@ -232,11 +231,10 @@ export default function OnboardingPager() {
 
       // Start foreground polling for usage events while the app is open.
       startUsagePolling(blocked, (pkg) => {
-        console.log(`[Onboarding] Blocking access to ${pkg}`);
         // Later: navigate to a dedicated puzzle screen here.
       });
     } catch (e) {
-      console.error('Error finishing onboarding / starting usage polling:', e);
+      // silently ignore
     }
 
     await completeOnboarding();
@@ -245,7 +243,7 @@ export default function OnboardingPager() {
   // When entering the permissions page (or when app resumes), verify overlay & usage permissions
   useEffect(() => {
     const update = async () => {
-      if (phase === 'action' && index === 1 && PermissionModule) {
+      if (phase === 'action' && index === 2 && PermissionModule) {
         try {
           const [overlay, usage] = await Promise.all([
             PermissionModule.checkOverlayPermission(),
@@ -280,7 +278,7 @@ export default function OnboardingPager() {
         showsHorizontalScrollIndicator={false}
         data={activePages}
         keyExtractor={(item) => item.key}
-        scrollEnabled={!(phase === 'action' && index === 1)}
+        scrollEnabled={!(phase === 'action' && (index === 1 || index === 2))}
         onMomentumScrollEnd={(e) => {
           const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
           setIndex(newIndex);
@@ -380,14 +378,64 @@ export default function OnboardingPager() {
             );
           }
 
+          if (item.key === 'dataDisclosure') {
+            return (
+              <ScrollView
+                style={{ width }}
+                contentContainerStyle={[styles.pageAction, { backgroundColor: colors.background, paddingBottom: 100 }]}
+              >
+                <Ionicons name="shield-checkmark" size={56} color={colors.primary} style={{ alignSelf: 'center', marginBottom: 12 }} />
+                <Text style={[styles.title, { color: colors.primary }]}>Your Data, Your Device</Text>
+                <Text style={[styles.subtitle, styles.subtitleAction, { color: colors.muted }]}>
+                  Transparency matters. Here's exactly what this app does and doesn't do.
+                </Text>
+
+                <View style={{ marginTop: 8, gap: 14 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                    <Ionicons name="eye-outline" size={22} color={colors.primary} style={{ marginTop: 2 }} />
+                    <Text style={[styles.permissionContent, { flex: 1 }]}>
+                      This app monitors which app is currently in the foreground on your device{' '}
+                      <Text style={{ fontWeight: '700' }}>solely to enable app blocking</Text>.
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                    <Ionicons name="close-circle-outline" size={22} color={colors.error} style={{ marginTop: 2 }} />
+                    <Text style={[styles.permissionContent, { flex: 1 }]}>
+                      We do <Text style={{ fontWeight: '700' }}>not</Text> read, collect, store, or transmit any personal data, messages, browsing history, or app content.
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                    <Ionicons name="phone-portrait-outline" size={22} color={colors.primary} style={{ marginTop: 2 }} />
+                    <Text style={[styles.permissionContent, { flex: 1 }]}>
+                      All your preferences and puzzle progress are stored <Text style={{ fontWeight: '700' }}>locally on your device</Text>.
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                    <Ionicons name="settings-outline" size={22} color={colors.primary} style={{ marginTop: 2 }} />
+                    <Text style={[styles.permissionContent, { flex: 1 }]}>
+                      You can revoke permissions or pause blocking at any time from Settings or the notification.
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={[styles.content, { marginTop: 20, textAlign: 'center', color: colors.muted, fontSize: 13 }]}>
+                  By tapping "I Agree & Continue" below, you consent to this app detecting foreground app usage for blocking purposes only.
+                </Text>
+              </ScrollView>
+            );
+          }
+
           if (item.key === 'permissions') {
             return (
-              <View style={[styles.pageAction, { width, backgroundColor: colors.background }]}>
+              <View style={[styles.pageAction, { width, backgroundColor: colors.background, paddingTop: 0 }]}>
                 <Text style={[styles.title, { color: colors.primary }]}>We need a little help</Text>
                 <Text style={[styles.subtitle, styles.subtitleAction, { color: colors.muted }]}>
                   To block distractions, we require special access permissions.
                 </Text>
-                <View style={{ marginTop: 0 }}>
+                <View style={{ marginTop: 10 }}>
                   <Text style={[styles.permissionContent]}>USAGE ACCESS</Text>
                   <Text style={[styles.permissionContent]}>
                     Lets the app know which app is currently open so it can show you a chess puzzle instead of your chosen distractions.
@@ -400,7 +448,7 @@ export default function OnboardingPager() {
                   </TouchableOpacity>
                 </View>
 
-                <View style={{ marginTop: 5 }}>
+                <View style={{ marginTop: 15 }}>
                   <Text style={[styles.permissionContent]}>OVERLAY</Text>
                   <Text style={[styles.permissionContent]}>
                     Allows the app to appear on top when a blocked app is opened, so you see your puzzle instead of the feed.
@@ -412,10 +460,6 @@ export default function OnboardingPager() {
                     <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>Grant overlay permission</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={[styles.content, { marginTop: 24, textAlign: 'left' }]}>
-                  We do not read your messages, passwords, or personal content. You can change these permissions or turn blocking off
-                  anytime in Android system settings.
-                </Text>
               </View>
             );
           }
@@ -435,7 +479,7 @@ export default function OnboardingPager() {
                     try {
                       Linking.openSettings();
                     } catch (e) {
-                      console.warn('Failed to open app settings for Xiaomi/Redmi instructions', e);
+                      // silently ignore
                     }
                   }}
                   style={{ marginTop: 0, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
@@ -481,6 +525,14 @@ export default function OnboardingPager() {
                   In the future, we may offer a simple, optional subscription to support development—no ads, no dark patterns, just clear
                   pricing.
                 </Text>
+                <TouchableOpacity
+                  onPress={() => Linking.openURL('https://www.clutchess.tech/noscroll-privacy-policy')}
+                  style={{ marginTop: 16, alignSelf: 'center' }}
+                >
+                  <Text style={{ color: colors.primary, textDecorationLine: 'underline', fontSize: 14 }}>
+                    Read our Privacy Policy
+                  </Text>
+                </TouchableOpacity>
               </View>
             );
           }
@@ -505,6 +557,18 @@ export default function OnboardingPager() {
       {/* Full-width action buttons for Action pages (permissions / pricing) */}
       {phase === 'action' && index === 1 && (
         <TouchableOpacity
+          onPress={() => {
+            const next = 2;
+            setIndex(next);
+            listRef.current?.scrollToIndex({ index: next, animated: true });
+          }}
+          style={[styles.fullButton, { bottom: insets.bottom + 24, backgroundColor: colors.primary }]}
+        >
+          <Text style={[styles.fullButtonText, { color: 'white' }]}>I Agree & Continue</Text>
+        </TouchableOpacity>
+      )}
+      {phase === 'action' && index === 2 && (
+        <TouchableOpacity
           onPress={handlePermissionsCta}
           disabled={!canContinueFromPermissions}
           style={[
@@ -521,10 +585,10 @@ export default function OnboardingPager() {
           </Text>
         </TouchableOpacity>
       )}
-      {phase === 'action' && index === 2 && (
+      {phase === 'action' && index === 3 && (
         <TouchableOpacity
           onPress={() => {
-            const next = 3;
+            const next = 4;
             setIndex(next);
             listRef.current?.scrollToIndex({ index: next, animated: true });
           }}
@@ -533,7 +597,7 @@ export default function OnboardingPager() {
           <Text style={[styles.fullButtonText, { color: 'white' }]}>Continue</Text>
         </TouchableOpacity>
       )}
-      {phase === 'action' && index === 3 && (
+      {phase === 'action' && index === 4 && (
         <TouchableOpacity onPress={startTrial} style={[styles.fullButton, { bottom: insets.bottom + 24, backgroundColor: colors.primary }]}> 
           <Text style={[styles.fullButtonText, { color: 'white' }]}>Start free trial</Text>
         </TouchableOpacity>

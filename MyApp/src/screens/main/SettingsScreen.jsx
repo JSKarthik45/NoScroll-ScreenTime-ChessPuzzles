@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Linking, Switch } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Linking, Switch, NativeModules, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemedStyles, useThemeColors } from '../../theme/ThemeContext';
 import { loadPreferences, savePreferences, setTheme, setChessUsername as saveChessUsername, setChessTacticsRating, clearChessImport, setBlocked as persistSetBlocked, getBlockedUntoggleCount, setBlockedUntoggleCount } from '../../storage/preferences';
 import { useThemeController } from '../../theme/ThemeContext';
+
+const { PermissionModule } = NativeModules || {};
 
 // No app toggles; replaced by time window selection UI
 
@@ -105,6 +107,7 @@ export default function SettingsScreen() {
   const [themeKey, setThemeKey] = useState('classic');
   const [tacticsRating, setTacticsRating] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [monitoringEnabled, setMonitoringEnabled] = useState(false);
   const themeController = useThemeController();
   const colors = useThemeColors();
   const styles = useThemedStyles(styleFactory);
@@ -127,8 +130,48 @@ export default function SettingsScreen() {
       // Load how many times the user has already un-blocked apps
       const storedUntoggles = await getBlockedUntoggleCount();
       setBlockedUntoggleCountState(typeof storedUntoggles === 'number' && Number.isFinite(storedUntoggles) ? storedUntoggles : 0);
+
+      // Check if monitoring is currently active
+      if (Platform.OS === 'android' && PermissionModule && typeof PermissionModule.isBlockingEnabled === 'function') {
+        try {
+          const enabled = await PermissionModule.isBlockingEnabled();
+          setMonitoringEnabled(!!enabled);
+        } catch {}
+      }
     })();
   }, []);
+
+  const toggleMonitoring = () => {
+    if (Platform.OS !== 'android' || !PermissionModule) return;
+    if (monitoringEnabled) {
+      Alert.alert(
+        'Pause Blocking',
+        'This will pause app blocking until you re-enable it or until tomorrow. Are you sure?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Pause',
+            style: 'destructive',
+            onPress: () => {
+              try {
+                if (typeof PermissionModule.stopMonitoring === 'function') {
+                  PermissionModule.stopMonitoring();
+                }
+              } catch {}
+              setMonitoringEnabled(false);
+            },
+          },
+        ],
+      );
+    } else {
+      try {
+        if (typeof PermissionModule.startMonitoring === 'function') {
+          PermissionModule.startMonitoring();
+        }
+      } catch {}
+      setMonitoringEnabled(true);
+    }
+  };
   const importRating = async () => {
     if (!chessUsername) return;
     try {
@@ -294,6 +337,29 @@ export default function SettingsScreen() {
         })}
       </View>
 
+      {Platform.OS === 'android' && (
+        <>
+          <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Blocking Status</Text>
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <Ionicons name={monitoringEnabled ? 'shield-checkmark' : 'shield-outline'} size={28} color={monitoringEnabled ? colors.primary : colors.muted} />
+              <Text style={styles.rowLabel}>{monitoringEnabled ? 'Blocking active' : 'Blocking paused'}</Text>
+            </View>
+            <Switch
+              value={monitoringEnabled}
+              onValueChange={toggleMonitoring}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.text}
+            />
+          </View>
+          <Text style={styles.helperText}>
+            {monitoringEnabled
+              ? 'The app is actively monitoring and blocking selected apps. You can pause blocking at any time.'
+              : 'Blocking is paused. Selected apps are not being blocked. Toggle on to resume blocking.'}
+          </Text>
+        </>
+      )}
+
       <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Our Other Products and Services</Text>
       <View style={styles.linkList}>
         <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech')}>
@@ -307,6 +373,25 @@ export default function SettingsScreen() {
           <Ionicons name="open-outline" size={20} color={colors.muted} style={styles.linkIconRight} />
         </Pressable>
       </View>
+
+      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Legal</Text>
+      <View style={styles.linkList}>
+        <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech/noscroll-privacy-policy')}>
+          <Ionicons name="lock-closed-outline" size={22} color={colors.text} />
+          <Text style={styles.linkLabel}>Privacy Policy</Text>
+          <Ionicons name="open-outline" size={20} color={colors.muted} style={styles.linkIconRight} />
+        </Pressable>
+        <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech/noscroll-terms')}>
+          <Ionicons name="document-text-outline" size={22} color={colors.text} />
+          <Text style={styles.linkLabel}>Terms of Service</Text>
+          <Ionicons name="open-outline" size={20} color={colors.muted} style={styles.linkIconRight} />
+        </Pressable>
+      </View>
+
+      <Text style={[styles.helperText, { marginTop: 12, marginBottom: 16, textAlign: 'center' }]}>
+        NoScroll only monitors which app is in the foreground to enable blocking.{"\n"}
+        We do not read, collect, or transmit any personal data, messages, or browsing history.
+      </Text>
 
     </ScrollView>
     {/* no time picker modal - removed */}

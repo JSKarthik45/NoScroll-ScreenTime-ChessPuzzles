@@ -32,11 +32,6 @@ export const startUsagePolling = (blockedMap, onBlockTriggered) => {
     blockedPackageList.push(...pkgs);
   });
 
-  console.log('[usageLogger] startUsagePolling', {
-    blockedMap,
-    blockedPackageList,
-  });
-
   intervalId = setInterval(async () => {
     try {
       if (!PermissionModule || typeof PermissionModule.getUsageEvents !== 'function') {
@@ -44,7 +39,6 @@ export const startUsagePolling = (blockedMap, onBlockTriggered) => {
       }
 
       const events = await PermissionModule.getUsageEvents(lastTimestamp);
-      console.log('[usageLogger] polled events count', events?.length ?? 0);
 
       if (events && events.length > 0) {
         // advance cursor to just after the last event we saw
@@ -57,20 +51,18 @@ export const startUsagePolling = (blockedMap, onBlockTriggered) => {
 
         for (const event of events) {
           if (!event || !event.packageName) continue;
-          console.log('[usageLogger] event package', event.packageName);
 
           if (blockedPackageList.includes(event.packageName)) {
-            console.log('[usageLogger] BLOCK match for', event.packageName);
             try {
               onBlockTriggered && onBlockTriggered(event.packageName);
             } catch (e) {
-              console.error('Error in onBlockTriggered callback', e);
+              // silently ignore
             }
           }
         }
       }
     } catch (e) {
-      console.error('Usage polling error:', e);
+      // silently ignore
     }
   }, 1000);
 };
