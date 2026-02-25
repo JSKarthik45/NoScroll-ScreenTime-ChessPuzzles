@@ -430,7 +430,7 @@ export default function OnboardingPager() {
 
           if (item.key === 'permissions') {
             return (
-              <View style={[styles.pageAction, { width, backgroundColor: colors.background, paddingTop: 0 }]}>
+              <View style={[styles.pageAction, { width, backgroundColor: colors.background}]}>
                 <Text style={[styles.title, { color: colors.primary }]}>We need a little help</Text>
                 <Text style={[styles.subtitle, styles.subtitleAction, { color: colors.muted }]}>
                   To block distractions, we require special access permissions.

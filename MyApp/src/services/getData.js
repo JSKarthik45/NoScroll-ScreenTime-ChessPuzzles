@@ -1,4 +1,3 @@
-import { map } from 'lodash';
 import { supabase } from '../services/supabase';
 import { loadPreferences } from '../storage/preferences';
 
@@ -6,17 +5,11 @@ const DEFAULT_BUCKET_SIZE = 1000;
 // To avoid infinite loops when advancing id windows
 const MAX_BUCKET_HOPS = 20;
 
-export async function getPuzzlesData(tableName, limit = 10, rangeStart = null, rangeSize = DEFAULT_BUCKET_SIZE) {
-    const mapRows = (rows) => (rows || []).map((row) => ({
-        id: (typeof row.id === 'number' ? row.id : null),
-        key: String(row.id ?? row.key ?? Math.random()),
-        fen: row.fen,
-        turnText: row.turnText || row.turn || 'White to play',
-        text: row.text || 'Can you solve this puzzle?',
-        correctMove: row.correctMove ?? null,
-    }));
+// Only fetch the columns we actually use
+const SELECT_COLUMNS = 'id,fen,text,correctMove,popularity,lowestRating,highestRating';
 
-    const mapRowsFromPuzzles = (rows) => (rows || []).map((row) => {
+function mapRowsFromPuzzles(rows) {
+    return (rows || []).map((row) => {
         const fen = row.fen || '';
         const parts = typeof fen === 'string' ? fen.split(' ') : [];
         const color = parts.length >= 2 ? parts[1] : 'w';
@@ -24,31 +17,30 @@ export async function getPuzzlesData(tableName, limit = 10, rangeStart = null, r
         const text = row.text || 'Can you solve this puzzle?';
         return {
             id: (typeof row.id === 'number' ? row.id : null),
-            key: String(row.id ?? row.key ?? Math.random()),
+            key: String(row.id ?? Math.random()),
             fen: row.fen,
             turnText,
             text,
             correctMove: row.correctMove ?? null,
         };
     });
+}
 
-    // Unified Puzzles table with optional id windows
+export async function getPuzzlesData(tableName, limit = 10, rangeStart = null, rangeSize = DEFAULT_BUCKET_SIZE) {
     try {
         const hasRange = typeof rangeStart === 'number' && Number.isFinite(rangeStart);
-        const bucketStart = hasRange ? rangeStart : 0;
         const bucketSize = (typeof rangeSize === 'number' && Number.isFinite(rangeSize) && rangeSize > 0) ? rangeSize : DEFAULT_BUCKET_SIZE;
-        let currentStart = hasRange ? bucketStart : null;
+        let currentStart = hasRange ? rangeStart : null;
 
         if (tableName === 'TrendingPuzzles') {
             let hops = 0;
-            // If no explicit rangeStart was provided, we do a single full-table style query
             do {
                 const lowerId = typeof currentStart === 'number' && Number.isFinite(currentStart) ? currentStart : null;
                 const upperId = typeof lowerId === 'number' ? lowerId + bucketSize : null;
 
                 let q = supabase
                     .from('Puzzles')
-                    .select('*');
+                    .select(SELECT_COLUMNS);
 
                 if (lowerId != null && upperId != null) {
                     q = q.gte('id', lowerId).lt('id', upperId);
@@ -60,12 +52,13 @@ export async function getPuzzlesData(tableName, limit = 10, rangeStart = null, r
                     .limit(limit);
 
                 const { data, error } = await q;
-                if (!error && Array.isArray(data) && data.length > 0) {
+                if (error) throw error;
+                if (Array.isArray(data) && data.length > 0) {
                     return mapRowsFromPuzzles(data);
                 }
 
                 if (currentStart == null) {
-                    break; // caller didn't supply a range window; avoid hopping indefinitely
+                    break;
                 }
 
                 currentStart += bucketSize;
@@ -76,58 +69,55 @@ export async function getPuzzlesData(tableName, limit = 10, rangeStart = null, r
             const rating = (typeof prefs?.chessTacticsRating === 'number' && Number.isFinite(prefs.chessTacticsRating))
                 ? prefs.chessTacticsRating
                 : 1500;
-            if (typeof rating === 'number' && Number.isFinite(rating)) {
-                // If no explicit rangeStart was provided, just do a single query filtered by rating.
-                if (!hasRange) {
+
+            if (!hasRange) {
+                let q = supabase
+                    .from('Puzzles')
+                    .select(SELECT_COLUMNS)
+                    .lte('lowestRating', rating)
+                    .gte('highestRating', rating)
+                    .order('id', { ascending: true })
+                    .limit(limit);
+
+                const { data, error } = await q;
+                if (error) throw error;
+                if (Array.isArray(data) && data.length > 0) {
+                    return mapRowsFromPuzzles(data);
+                }
+            } else {
+                let hops = 0;
+                let collected = [];
+
+                while (
+                    typeof currentStart === 'number' &&
+                    Number.isFinite(currentStart) &&
+                    collected.length < limit &&
+                    hops <= MAX_BUCKET_HOPS
+                ) {
+                    const lowerId = currentStart;
+                    const upperId = currentStart + bucketSize;
+
                     let q = supabase
                         .from('Puzzles')
-                        .select('*')
+                        .select(SELECT_COLUMNS)
+                        .gte('id', lowerId).lt('id', upperId)
                         .lte('lowestRating', rating)
                         .gte('highestRating', rating)
                         .order('id', { ascending: true })
-                        .limit(limit);
+                        .limit(limit - collected.length);
 
                     const { data, error } = await q;
-                    if (!error && Array.isArray(data) && data.length > 0) {
-                        return mapRowsFromPuzzles(data);
-                    }
-                } else {
-                    // When a rangeStart is provided, accumulate results across successive id windows
-                    // (each of size bucketSize) until we collect `limit` rows or hit hop limit.
-                    let hops = 0;
-                    let collected = [];
-
-                    while (
-                        typeof currentStart === 'number' &&
-                        Number.isFinite(currentStart) &&
-                        collected.length < limit &&
-                        hops <= MAX_BUCKET_HOPS
-                    ) {
-                        const lowerId = currentStart;
-                        const upperId = currentStart + bucketSize;
-
-                        let q = supabase
-                            .from('Puzzles')
-                            .select('*')
-                            .gte('id', lowerId).lt('id', upperId)
-                            .lte('lowestRating', rating)
-                            .gte('highestRating', rating)
-                            .order('id', { ascending: true })
-                            .limit(limit - collected.length);
-
-                        const { data, error } = await q;
-                        if (!error && Array.isArray(data) && data.length > 0) {
-                            collected = collected.concat(data);
-                        }
-
-                        currentStart += bucketSize;
-                        hops += 1;
+                    if (error) throw error;
+                    if (Array.isArray(data) && data.length > 0) {
+                        collected = collected.concat(data);
                     }
 
-                    if (collected.length > 0) {
-                        const finalRows = collected.slice(0, limit);
-                        return mapRowsFromPuzzles(finalRows);
-                    }
+                    currentStart += bucketSize;
+                    hops += 1;
+                }
+
+                if (collected.length > 0) {
+                    return mapRowsFromPuzzles(collected.slice(0, limit));
                 }
             }
         } else {
@@ -138,7 +128,7 @@ export async function getPuzzlesData(tableName, limit = 10, rangeStart = null, r
 
                 let q = supabase
                     .from('Puzzles')
-                    .select('*');
+                    .select(SELECT_COLUMNS);
 
                 if (lowerId != null && upperId != null) {
                     q = q.gte('id', lowerId).lt('id', upperId);
@@ -149,22 +139,22 @@ export async function getPuzzlesData(tableName, limit = 10, rangeStart = null, r
                     .limit(limit);
 
                 const { data, error } = await q;
-                if (!error && Array.isArray(data) && data.length > 0) {
+                if (error) throw error;
+                if (Array.isArray(data) && data.length > 0) {
                     return mapRowsFromPuzzles(data);
                 }
 
                 if (currentStart == null) {
-                    break; // caller didn't supply a range window; avoid hopping indefinitely
+                    break;
                 }
 
                 currentStart += bucketSize;
                 hops += 1;
             } while (hops <= MAX_BUCKET_HOPS);
         }
-    } catch {
-        // Ignore and return empty on error
+    } catch (_) {
+        // Return empty on error; caller handles fallback
     }
 
-    // On error or no data, return empty array
     return [];
 }

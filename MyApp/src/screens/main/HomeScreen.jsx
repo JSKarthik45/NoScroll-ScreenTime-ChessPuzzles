@@ -22,14 +22,12 @@ export default function HomeScreen({ mode = 'Trending' }) {
   const [trendInitialIndex, setTrendInitialIndex] = React.useState(0);
   const [practiceInitialIndex, setPracticeInitialIndex] = React.useState(0);
 
-  const DEFAULT_BUCKET_START = 10000;
   const BUCKET_SIZE = 1000;
   const PAGE_SIZE = 10;
   const PREFETCH_INDEX_IN_BATCH = 7; // 0-based index 7 => 8th puzzle
 
   React.useEffect(() => {
     let mounted = true;
-    // no-scroll periodic reminder removed
     (async () => {
       try {
         const [storedT, storedP, storedIdxT, storedIdxP] = await Promise.all([
@@ -38,29 +36,18 @@ export default function HomeScreen({ mode = 'Trending' }) {
           getBatchIndex('TrendingPuzzles'),
           getBatchIndex('PracticePuzzles'),
         ]);
-        let bucketT = (typeof storedT === 'number' && Number.isFinite(storedT)) ? storedT : DEFAULT_BUCKET_START;
-        let bucketP = (typeof storedP === 'number' && Number.isFinite(storedP)) ? storedP : DEFAULT_BUCKET_START;
-        if (bucketT < DEFAULT_BUCKET_START) {
-          bucketT = DEFAULT_BUCKET_START;
-        }
-        if (bucketP < DEFAULT_BUCKET_START) {
-          bucketP = DEFAULT_BUCKET_START;
-        }
 
-        // If no prior bucket is stored, persist the default start so future sessions reuse it
-        if (storedT == null) {
-          try { setLatestPuzzleId('TrendingPuzzles', bucketT); } catch {}
-        }
-        if (storedP == null) {
-          try { setLatestPuzzleId('PracticePuzzles', bucketP); } catch {}
-        }
+        // Use stored bucket if available, otherwise fetch without a range window
+        // so we don't waste hops guessing an arbitrary starting ID.
+        const bucketT = (typeof storedT === 'number' && Number.isFinite(storedT)) ? storedT : null;
+        const bucketP = (typeof storedP === 'number' && Number.isFinite(storedP)) ? storedP : null;
 
         let [t, p] = await Promise.all([
-          getPuzzlesData('TrendingPuzzles', PAGE_SIZE, bucketT),
-          getPuzzlesData('PracticePuzzles', PAGE_SIZE, bucketP),
+          getPuzzlesData('TrendingPuzzles', PAGE_SIZE, bucketT, BUCKET_SIZE),
+          getPuzzlesData('PracticePuzzles', PAGE_SIZE, bucketP, BUCKET_SIZE),
         ]);
 
-        // Fallbacks: if no puzzles in the current id window, try again from the start of the table
+        // Fallbacks: if no puzzles in the current id window, try again without a window
         if (!Array.isArray(t) || t.length === 0) {
           t = await getPuzzlesData('TrendingPuzzles', PAGE_SIZE, null);
         }
@@ -70,15 +57,32 @@ export default function HomeScreen({ mode = 'Trending' }) {
 
         if (!mounted) return;
 
-        setTrendBucketStart(bucketT);
-        setPracticeBucketStart(bucketP);
-        setTrendData(Array.isArray(t) ? t : []);
-        setPracticeData(Array.isArray(p) ? p : []);
+        // Derive the actual bucket start from the first returned puzzle's id,
+        // rounded down to the nearest BUCKET_SIZE boundary.
+        const tArr = Array.isArray(t) ? t : [];
+        const pArr = Array.isArray(p) ? p : [];
+        const deriveBucket = (items) => {
+          const firstId = items.length > 0 && typeof items[0].id === 'number' ? items[0].id : 0;
+          return Math.floor(firstId / BUCKET_SIZE) * BUCKET_SIZE;
+        };
+        const effectiveBucketT = bucketT ?? deriveBucket(tArr);
+        const effectiveBucketP = bucketP ?? deriveBucket(pArr);
+
+        // Persist derived bucket so future sessions start from here
+        if (storedT == null && tArr.length > 0) {
+          try { setLatestPuzzleId('TrendingPuzzles', effectiveBucketT); } catch {}
+        }
+        if (storedP == null && pArr.length > 0) {
+          try { setLatestPuzzleId('PracticePuzzles', effectiveBucketP); } catch {}
+        }
+
+        setTrendBucketStart(effectiveBucketT);
+        setPracticeBucketStart(effectiveBucketP);
+        setTrendData(tArr);
+        setPracticeData(pArr);
         // Set the initial index within the batch (clamped to data length)
-        const tLen = Array.isArray(t) ? t.length : 0;
-        const pLen = Array.isArray(p) ? p.length : 0;
-        setTrendInitialIndex(Math.min(storedIdxT || 0, Math.max(0, tLen - 1)));
-        setPracticeInitialIndex(Math.min(storedIdxP || 0, Math.max(0, pLen - 1)));
+        setTrendInitialIndex(Math.min(storedIdxT || 0, Math.max(0, tArr.length - 1)));
+        setPracticeInitialIndex(Math.min(storedIdxP || 0, Math.max(0, pArr.length - 1)));
       } catch {}
     })();
     return () => { mounted = false; };
