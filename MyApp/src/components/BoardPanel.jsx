@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, Pressable, Animated, Easing, Vibration } from 'react-native';
 //import { Audio } from 'expo-av';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
@@ -26,7 +26,6 @@ const styleFactory = (colors) => StyleSheet.create({
   leftTextWrap: { position: 'absolute', left: 16, alignItems: 'flex-start' },
   sideText: { fontSize: 20, fontWeight: '700', color: colors.text },
   iconOnlyBtn: { alignItems: 'center', justifyContent: 'center' },
-  filledIcon: {},
   bigHeartOverlay: {
     position: 'absolute',
     top: 0,
@@ -61,6 +60,7 @@ export default function BoardPanel({
   autoAdvance = false,
   boardId,
   onMarkViewed,
+  isActive = true,
 }) {
   const [liked, setLiked] = useState(initialLiked);
   const [shared, setShared] = useState(initialShared);
@@ -75,8 +75,7 @@ export default function BoardPanel({
   const boardSize = Math.min(windowWidth, targetHeight);
   const boardTop = (availableHeight - boardSize) / 2; // centered board top within root
   const bannerWidth = boardSize - 24;
-  const bannerEstimatedHeight = 40; // approx banner height
-  const bannerTop = Math.max(boardTop - bannerEstimatedHeight - 6, 0);
+  const bannerBottom = (availableHeight + boardSize + 100) / 2 + 6;
 
   // Big heart animation overlay
   const bigHeartScale = useRef(new Animated.Value(0)).current;
@@ -89,30 +88,38 @@ export default function BoardPanel({
   const correctSoundRef = useRef(null);
   const [soundLoaded, setSoundLoaded] = useState(false);
   const [solved, setSolved] = useState(false); // ensure daily counter increments only once per puzzle
+  const [boardDisabled, setBoardDisabled] = useState(false);
+  const [moveAttempted, setMoveAttempted] = useState(false);
+  const chessRef = useRef(null);
+  const correctMovesRef = useRef([]);
+  const moveIndexRef = useRef(0);
+  const heartBtnScale = useRef(new Animated.Value(1)).current;
 
   // Reset per-puzzle local state when the board changes
   React.useEffect(() => {
     setLiked(initialLiked || false);
     setShared(initialShared || false);
     setSolved(false);
+    setBoardDisabled(false);
+    setMoveAttempted(false);
     setBannerVariant('default');
     setBannerText(text);
   }, [boardId, text, initialLiked, initialShared, fen]);
 
   const triggerBigHeart = () => {
     setShowBigHeart(true);
-    bigHeartScale.setValue(0.3);
-    bigHeartOpacity.setValue(0.9);
-    Animated.sequence([
-      Animated.timing(bigHeartScale, {
+    bigHeartScale.setValue(0.2);
+    bigHeartOpacity.setValue(1);
+    Animated.parallel([
+      Animated.spring(bigHeartScale, {
         toValue: 1,
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
+        friction: 4,
+        tension: 120,
         useNativeDriver: true,
       }),
       Animated.timing(bigHeartOpacity, {
         toValue: 0,
-        duration: 800,
+        duration: 600,
         delay: 800,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
@@ -120,8 +127,14 @@ export default function BoardPanel({
     ]).start(() => setShowBigHeart(false));
   };
 
+  const bounceHeartBtn = () => {
+    heartBtnScale.setValue(0.5);
+    Animated.spring(heartBtnScale, { toValue: 1, friction: 3, tension: 200, useNativeDriver: true }).start();
+  };
+
   const handleLikePress = () => {
     const now = Date.now();
+    bounceHeartBtn();
     if (now - lastLikeTap.current < 300) {
       setLiked(true);
       onLikeChange && onLikeChange(true);
@@ -176,27 +189,95 @@ export default function BoardPanel({
     }
   };*/
 
+  // Multi-move puzzle system: parse correctMove string, auto-play computer's first move
+  useEffect(() => {
+    if (!correctMove || !chessRef.current) return;
+    if (!isActive) {
+      setBoardDisabled(true);
+      return;
+    }
+    const moves = correctMove.trim().split(/\s+/);
+    correctMovesRef.current = moves;
+    moveIndexRef.current = 0;
+    if (moves.length === 0) return;
+    // Auto-play computer's first move after a short delay
+    setBoardDisabled(true);
+    const timer = setTimeout(() => {
+      if (chessRef.current) {
+        chessRef.current.makeMove(moves[0]);
+        moveIndexRef.current = 1;
+      }
+      if (moves.length <= 1) {
+        // Single-move puzzle: already solved by computer
+        setSolved(true);
+      } else {
+        setBoardDisabled(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [correctMove, boardId, isActive]);
+
   const evaluateMove = (move) => {
     if (!move || !move.san) return;
-    const isCorrect = !correctMove || move.san === correctMove;
-    if (isCorrect) {
+    const moves = correctMovesRef.current;
+    setMoveAttempted(true);
+    if (!moves || moves.length === 0) {
+      // No solution defined — accept any move
       if (!solved) {
         setSolved(true);
-        // Increment today's solved puzzle counter for streak tracking
         incrementTodayPuzzleCount();
         try { if (onMarkViewed && boardId != null) onMarkViewed(boardId); } catch {}
       }
       setBannerVariant('correct');
       setBannerText('Correct');
-      //playCorrectSound();
-    } else {
+      return;
+    }
+    const expectedIdx = moveIndexRef.current;
+    const expectedSan = moves[expectedIdx];
+    if (move.san !== expectedSan) {
+      // Incorrect move
       setBannerVariant('incorrect');
       setBannerText('Incorrect');
+      setBoardDisabled(true);
       triggerShake();
       try { Vibration.vibrate(120); } catch {}
+      return;
+    }
+    // Correct move
+    moveIndexRef.current = expectedIdx + 1;
+    if (moveIndexRef.current >= moves.length) {
+      // All moves completed
+      if (!solved) {
+        setSolved(true);
+        incrementTodayPuzzleCount();
+        try { if (onMarkViewed && boardId != null) onMarkViewed(boardId); } catch {}
+      }
+      setBannerVariant('correct');
+      setBannerText('Correct');
+      setBoardDisabled(true);
+    } else {
+      // More moves remain — auto-play computer's next move
+      setBoardDisabled(true);
+      setTimeout(() => {
+        if (chessRef.current && moveIndexRef.current < moves.length) {
+          chessRef.current.makeMove(moves[moveIndexRef.current]);
+          moveIndexRef.current += 1;
+          if (moveIndexRef.current >= moves.length) {
+            if (!solved) {
+              setSolved(true);
+              incrementTodayPuzzleCount();
+              try { if (onMarkViewed && boardId != null) onMarkViewed(boardId); } catch {}
+            }
+            setBannerVariant('correct');
+            setBannerText('Correct');
+          } else {
+            setBoardDisabled(false);
+          }
+        }
+      }, 400);
     }
     // No automatic advance unless explicitly enabled
-    if (autoAdvance && onAdvance) {
+    if (autoAdvance && onAdvance && moveIndexRef.current >= moves.length) {
       setTimeout(() => {
         onAdvance();
         setBannerVariant('default');
@@ -227,6 +308,9 @@ export default function BoardPanel({
   }
   const effectiveFen = lastFenRef.current || 'start';
 
+  // Board flip: when it's black's turn, render from black's perspective
+  const flipped = typeof turnText === 'string' && turnText.toLowerCase().includes('black');
+
   return (
     <Animated.View
       style={[styles.root, { transform: [{ translateX: shakeTranslate }] }] }
@@ -234,16 +318,19 @@ export default function BoardPanel({
     >
       <View style={styles.boardCenter}>
         <ChessBoard
+          ref={chessRef}
           fen={effectiveFen}
           size={boardSize}
           borderRadius={borderRadius}
           onMove={evaluateMove}
+          disabled={boardDisabled}
+          flipped={flipped}
         />
       </View>
       <View style={[
         styles.bannerOverlay,
         {
-          top: bannerTop,
+          bottom: bannerBottom,
           width: bannerWidth,
           left: (windowWidth - bannerWidth) / 2,
           backgroundColor: bannerVariant === 'correct' ? colors.success : bannerVariant === 'incorrect' ? colors.error : colors.surface,
@@ -253,12 +340,13 @@ export default function BoardPanel({
       </View>
       <View style={[styles.actionsRight, { bottom: overlayBottom }]} pointerEvents="box-none">
         <Pressable onPress={handleLikePress} style={styles.iconOnlyBtn} hitSlop={12}>
-          <Ionicons
-            name={liked ? 'heart' : 'heart-outline'}
-            size={33}
-            color={colors.text}
-            style={liked ? styles.filledIcon : null}
-          />
+          <Animated.View style={{ transform: [{ scale: heartBtnScale }] }}>
+            <Ionicons
+              name={liked ? 'heart' : 'heart-outline'}
+              size={33}
+              color={liked ? colors.error : colors.text}
+            />
+          </Animated.View>
         </Pressable>
         <Pressable onPress={handleSharePress} style={[styles.iconOnlyBtn, { marginTop: 16 }]} hitSlop={12}>
           <Ionicons

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Animated, Dimensions, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PUZZLE_COUNTS_KEY, getPuzzleCounts, incrementTodayPuzzleCount, onPuzzleCountChanged, loadPreferences } from '../../storage/preferences';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,20 +35,28 @@ const styleFactory = (colors) => {
 	const { width } = Dimensions.get('window');
 	const maxCols = 12; // 12 weeks
 	const gutter = 4;
-	const cellSize = Math.floor((width - 32 - gutter * (maxCols - 1)) / maxCols); // 16 padding each side
+	const dayLabelWidth = 24;
+	const cellSize = Math.floor((width - 32 - dayLabelWidth - 4 - gutter * (maxCols - 1)) / maxCols);
 	return StyleSheet.create({
-		root: { flex: 1, padding: 16 },
-		centerWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 12, marginBottom: 16 },
+		root: { flex: 1 },
+		centerWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 0, marginBottom: 10 },
 		flameWrap: { alignItems: 'center', justifyContent: 'center', position: 'relative', width: 160, height: 160 },
-		streakText: { marginTop: 8, fontSize: 16, fontWeight: '700', color: colors.text },
+		streakNumber: { fontSize: 42, fontWeight: '900', color: colors.text },
+		streakLabel: { fontSize: 15, fontWeight: '600', color: colors.muted },
+		streakMotivation: { fontSize: 14, color: colors.muted, marginTop: 4 },
+		sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+		sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginLeft: 8 },
+		sectionSubtitle: { fontSize: 13, color: colors.muted, marginBottom: 8, marginLeft: 28 },
 		heatmapWrap: { marginTop: 8 },
+		heatmapRow: { flexDirection: 'row' },
+		dayLabelsCol: { width: dayLabelWidth, marginRight: 4, justifyContent: 'flex-start' },
 		row: { flexDirection: 'row' },
 		col: { marginRight: gutter },
 		cell: { width: cellSize, height: cellSize, borderRadius: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
 		cellText: { fontSize: 10, fontWeight: '600' },
-		legendRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
-		legendLabel: { fontSize: 12, color: colors.muted, marginRight: 8 },
-		legendBox: { width: 16, height: 16, borderRadius: 4, marginRight: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+		legendRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
+		legendLabel: { fontSize: 11, fontWeight: '500', color: colors.muted, marginRight: 8 },
+		legendBox: { width: 14, height: 14, borderRadius: 4, marginRight: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
 		rewardCard: {
 			marginTop: 20,
 			borderRadius: 16,
@@ -117,17 +125,22 @@ export default function StreakScreen() {
 		})();
 	}, [isFocused]);
 
-	// Compute weeks (12) x 7 days heatmap data ending today
+	// Compute weeks (12) x 7 days heatmap data with Sun-Sat aligned columns
 	const weeks = useMemo(() => {
 		const today = new Date();
-		const totalDays = 12 * 7;
-		const start = addDays(today, -totalDays + 1);
+		const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
+		const thisWeekSun = addDays(today, -dayOfWeek);
+		const start = addDays(thisWeekSun, -11 * 7);
 		const out = [];
 		for (let c = 0; c < 12; c++) {
 			const col = [];
 			for (let r = 0; r < 7; r++) {
 				const d = addDays(start, c * 7 + r);
-				col.push(isoDay(d));
+				if (d > today) {
+					col.push(null); // future date
+				} else {
+					col.push(isoDay(d));
+				}
 			}
 			out.push(col);
 		}
@@ -197,7 +210,10 @@ export default function StreakScreen() {
 
 	const renderColumn = ({ item }) => (
 		<View style={styles.col}>
-			{item.map((date) => {
+			{item.map((date, idx) => {
+				if (date === null) {
+					return <View key={`empty-${idx}`} style={[styles.cell, { backgroundColor: 'transparent', borderWidth: 0, marginBottom: 4 }]} />;
+				}
 				const n = counts[date] || 0;
 				const bg = levelColor(n);
 				const isToday = date === isoDay();
@@ -227,7 +243,7 @@ export default function StreakScreen() {
 	}, [counts, dailyGoal]);
 
 	return (
-		<View style={styles.root}>
+		<ScrollView style={styles.root} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
 			<View style={styles.centerWrap}>
 				{(() => {
 					const { r, g, b } = hexToRgb(colors.primary || '#ff6a00');
@@ -284,17 +300,39 @@ export default function StreakScreen() {
 						</Animated.View>
 					);
 				})()}
-				<Text style={styles.streakText}>{streakDays} day streak</Text>
+				<Text style={styles.streakNumber}>{streakDays}</Text>
+				<Text style={styles.streakLabel}>day streak</Text>
+				<Text style={styles.streakMotivation}>
+					{streakDays >= 7 ? '🔥 On fire! Keep it going!'
+						: streakDays >= 3 ? '💪 Great momentum!'
+						: streakDays >= 1 ? '✨ Nice start!'
+						: 'Solve a puzzle to start your streak!'}
+				</Text>
 			</View>
 
 			<View style={styles.heatmapWrap}>
-				<FlatList
-					horizontal
-					showsHorizontalScrollIndicator={false}
-					data={weeks}
-					keyExtractor={(_, i) => `col-${i}`}
-					renderItem={renderColumn}
-				/>
+				<View style={styles.sectionHeader}>
+					<Ionicons name="calendar-outline" size={20} color={colors.text} />
+					<Text style={styles.sectionTitle}>Activity</Text>
+				</View>
+				<Text style={styles.sectionSubtitle}>Last 12 weeks</Text>
+
+				<View style={styles.heatmapRow}>
+					<View style={styles.dayLabelsCol}>
+						{['', 'M', '', 'W', '', 'F', ''].map((label, i) => (
+							<View key={i} style={{ height: styles.cell.width, marginBottom: 4, justifyContent: 'center' }}>
+								<Text style={{ fontSize: 11, fontWeight: '500', color: colors.muted }}>{label}</Text>
+							</View>
+						))}
+					</View>
+					<FlatList
+						horizontal
+						showsHorizontalScrollIndicator={false}
+						data={weeks}
+						keyExtractor={(_, i) => `col-${i}`}
+						renderItem={renderColumn}
+					/>
+				</View>
 
 				<View style={styles.legendRow}>
 					<Text style={styles.legendLabel}>Less</Text>
@@ -330,7 +368,7 @@ export default function StreakScreen() {
 				</Pressable>
 			</View>
 			*/}
-		</View>
+		</ScrollView>
 	);
 }
 

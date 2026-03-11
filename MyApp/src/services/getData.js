@@ -13,7 +13,7 @@ function mapRowsFromPuzzles(rows) {
         const fen = row.fen || '';
         const parts = typeof fen === 'string' ? fen.split(' ') : [];
         const color = parts.length >= 2 ? parts[1] : 'w';
-        const turnText = color === 'b' ? 'Black to play' : 'White to play';
+        const turnText = color === 'b' ? 'White to play' : 'Black to play';
         const text = row.text || 'Can you solve this puzzle?';
         return {
             id: (typeof row.id === 'number' ? row.id : null),

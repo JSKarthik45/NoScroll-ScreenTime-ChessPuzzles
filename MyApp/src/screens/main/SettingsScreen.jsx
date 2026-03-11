@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Linking, Switch, NativeModules, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemedStyles, useThemeColors } from '../../theme/ThemeContext';
-import { loadPreferences, savePreferences, setTheme, setChessUsername as saveChessUsername, setChessTacticsRating, clearChessImport, setBlocked as persistSetBlocked, getBlockedUntoggleCount, setBlockedUntoggleCount } from '../../storage/preferences';
+import { loadPreferences, savePreferences, setTheme, setChessUsername as saveChessUsername, setChessTacticsRating, clearChessImport, setBlocked as persistSetBlocked, getBlockedUntoggleCount, setBlockedUntoggleCount, onTacticsRatingChanged } from '../../storage/preferences';
 import { useThemeController } from '../../theme/ThemeContext';
 
 const { PermissionModule } = NativeModules || {};
@@ -10,9 +10,11 @@ const { PermissionModule } = NativeModules || {};
 // No app toggles; replaced by time window selection UI
 
 const styleFactory = (colors) => StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
-  scrollContent: { paddingBottom: 24 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8, color: colors.text },
+  container: { flex: 1, paddingHorizontal: 20, paddingTop: 0 },
+  scrollContent: { paddingBottom: 8 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 4 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginLeft: 8 },
+  sectionSubtitle: { fontSize: 13, color: colors.muted, marginBottom: 8, marginLeft: 28 },
   listContent: { paddingVertical: 3 },
   row: {
     flexDirection: 'row',
@@ -26,77 +28,74 @@ const styleFactory = (colors) => StyleSheet.create({
   rowLabel: { marginLeft: 12, fontSize: 16, color: colors.text },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap' },
   pill: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
     borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  pillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  pillText: { color: colors.text },
-  pillTextActive: { color: '#fff', fontWeight: '600' },
-  helperText: { marginTop: 6, color: colors.muted },
-  card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 12,
+    marginRight: 10,
+    marginBottom: 10,
     backgroundColor: colors.surface,
   },
-  cardLabel: { fontSize: 14, fontWeight: '600', marginBottom: 6, color: colors.text },
+  pillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  pillText: { color: colors.text, fontSize: 15, fontWeight: '500' },
+  pillTextActive: { color: '#fff', fontWeight: '700' },
+  helperText: { marginTop: 6, color: colors.muted },
+  card: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: colors.surface,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  cardLabel: { fontSize: 13, fontWeight: '600', marginBottom: 6, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
   primaryBtn: {
     marginTop: 12,
     paddingVertical: 12,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: colors.primary,
   },
   input: {
     color: colors.text,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 8,
     paddingHorizontal: 12,
+    backgroundColor: colors.background,
   },
   primaryBtnText: {
-    color: colors.text,
+    color: '#fff',
     fontWeight: '700',
   },
-  timePill: {
-    width: '48%',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.primary,
-  },
-  timePillLabel: { color: colors.text, marginBottom: 4 },
-  timePillValue: { color: colors.text, fontWeight: '700', fontSize: 16 },
   linkLabel: { marginLeft: 12, fontSize: 16, color: colors.text, flex: 1 },
   linkIconRight: { marginLeft: 8 },
-  linkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  linkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   themeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   themeOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1.5,
     borderColor: colors.border,
     width: '48%',
     marginRight: 0,
     marginBottom: 10,
     backgroundColor: colors.surface,
   },
-  themeOptionActive: { borderColor: colors.primary },
+  themeOptionActive: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.background },
   themeSwatches: { flexDirection: 'row', marginRight: 8 },
-  swatch: { width: 18, height: 18, borderRadius: 4, marginRight: 4 },
+  swatch: { width: 22, height: 22, borderRadius: 6, marginRight: 4 },
   themeLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: colors.border, opacity: 0.5, marginVertical: 16 },
 });
 
 export default function SettingsScreen() {
@@ -139,6 +138,12 @@ export default function SettingsScreen() {
         } catch {}
       }
     })();
+    // Subscribe to cross-screen rating changes
+    const unsub = onTacticsRatingChanged(({ rating, username }) => {
+      setTacticsRating(rating);
+      if (username != null) setChessUsername(username);
+    });
+    return unsub;
   }, []);
 
   const toggleMonitoring = () => {
@@ -248,7 +253,10 @@ export default function SettingsScreen() {
   return (
     <>
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.sectionTitle}>Blocked Apps</Text>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="shield-outline" size={20} color={colors.text} />
+        <Text style={styles.sectionTitle}>Blocked Apps</Text>
+      </View>
       {SOCIAL_APPS.map((item) => {
         const isOn = !!blocked[item.key];
         return (
@@ -280,7 +288,10 @@ export default function SettingsScreen() {
         </Text>
       )}
 
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Daily Puzzle Goal</Text>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="extension-puzzle-outline" size={20} color={colors.text} />
+        <Text style={styles.sectionTitle}>Daily Puzzle Goal</Text>
+      </View>
       <View style={styles.pillRow}>
         {[1, 3, 5, 10, 20].map(n => {
           const active = problemTarget === n;
@@ -292,14 +303,17 @@ export default function SettingsScreen() {
         })}
       </View>
       <Text style={styles.helperText}>Selected social media apps will be blocked until you solve your daily goal of {problemTarget} puzzles.</Text>
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Tactics Rating from Chess.com</Text>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="stats-chart-outline" size={20} color={colors.text} />
+        <Text style={styles.sectionTitle}>Tactics Rating</Text>
+      </View>
       {tacticsRating != null ? (
         <>
           <Text style={styles.cardLabel}>Tactics Highest Rating</Text>
           <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>{tacticsRating}</Text>
           <Text style={styles.helperText}>Imported for {chessUsername}</Text>
-          <Pressable onPress={async () => { await clearChessImport(); setTacticsRating(null); setChessUsername(''); }} style={[styles.primaryBtn, { marginTop: 10, backgroundColor: colors.primary }]}>
-            <Text style={{ color: colors.text, fontWeight: '700' }}>Clear & Re-import</Text>
+          <Pressable onPress={async () => { await clearChessImport(); setTacticsRating(null); setChessUsername(''); }} style={[styles.primaryBtn, { marginTop: 10, backgroundColor: colors.error }]}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Clear & Re-import</Text>
           </Pressable>
         </>
       ) : (
@@ -320,7 +334,10 @@ export default function SettingsScreen() {
         </>
       )}
 
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Theme</Text>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="color-palette-outline" size={20} color={colors.text} />
+        <Text style={styles.sectionTitle}>Theme</Text>
+      </View>
       <View style={styles.themeRow}>
         {themeOptions.map(opt => {
           const active = themeKey === opt.key;
@@ -339,7 +356,10 @@ export default function SettingsScreen() {
 
       {Platform.OS === 'android' && (
         <>
-          <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Blocking Status</Text>
+          <View style={styles.sectionHeader}>
+            <Ionicons name={monitoringEnabled ? 'shield-checkmark' : 'shield-outline'} size={20} color={colors.text} />
+            <Text style={styles.sectionTitle}>Blocking Status</Text>
+          </View>
           <View style={styles.row}>
             <View style={styles.rowLeft}>
               <Ionicons name={monitoringEnabled ? 'shield-checkmark' : 'shield-outline'} size={28} color={monitoringEnabled ? colors.primary : colors.muted} />
@@ -360,7 +380,10 @@ export default function SettingsScreen() {
         </>
       )}
 
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Our Other Products and Services</Text>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="apps-outline" size={20} color={colors.text} />
+        <Text style={styles.sectionTitle}>More from us</Text>
+      </View>
       <View style={styles.linkList}>
         <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech')}>
           <Ionicons name="planet" size={22} color={colors.text} />
@@ -374,7 +397,10 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Legal</Text>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="document-text-outline" size={20} color={colors.text} />
+        <Text style={styles.sectionTitle}>Legal</Text>
+      </View>
       <View style={styles.linkList}>
         <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech/noscroll-privacy-policy')}>
           <Ionicons name="lock-closed-outline" size={22} color={colors.text} />

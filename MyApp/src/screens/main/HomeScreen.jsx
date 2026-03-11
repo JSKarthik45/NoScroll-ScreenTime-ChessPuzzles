@@ -1,12 +1,23 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, useThemedStyles } from '../../theme/ThemeContext';
 import BoardPager from '../../components/BoardPager';
 import { getPuzzlesData } from '../../services/getData';
-import { getLatestPuzzleId, setLatestPuzzleId, getBatchIndex, setBatchIndex } from '../../storage/preferences';
+import { getLatestPuzzleId, setLatestPuzzleId, getBatchIndex, setBatchIndex, loadPreferences, setChessUsername as saveChessUsername, setChessTacticsRating, onTacticsRatingChanged } from '../../storage/preferences';
 
 const styleFactory = (colors) => StyleSheet.create({
   container: { flex: 1, alignItems: 'stretch', justifyContent: 'center', paddingHorizontal: 0, paddingVertical: 0, backgroundColor: colors.background },
+  importGate: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  importIcon: { marginBottom: 16 },
+  importTitle: { fontSize: 22, fontWeight: '800', color: colors.text, textAlign: 'center', marginBottom: 8 },
+  importSub: { fontSize: 15, color: colors.muted, textAlign: 'center', marginBottom: 24 },
+  importCard: { width: '100%', backgroundColor: colors.surface, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.border },
+  importLabel: { fontSize: 13, fontWeight: '600', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  importInput: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, color: colors.text, fontSize: 16, marginBottom: 12 },
+  importBtn: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  importBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  importHelper: { marginTop: 16, fontSize: 13, color: colors.muted, textAlign: 'center' },
 });
 
 export default function HomeScreen({ mode = 'Trending' }) {
@@ -14,6 +25,10 @@ export default function HomeScreen({ mode = 'Trending' }) {
   const styles = useThemedStyles(styleFactory);
   const [trendData, setTrendData] = React.useState([]);
   const [practiceData, setPracticeData] = React.useState([]);
+  const [tacticsRating, setTacticsRating] = React.useState(null);
+  const [ratingLoaded, setRatingLoaded] = React.useState(false);
+  const [importUsername, setImportUsername] = React.useState('');
+  const [importingRating, setImportingRating] = React.useState(false);
 
   const [trendBucketStart, setTrendBucketStart] = React.useState(null);
   const [practiceBucketStart, setPracticeBucketStart] = React.useState(null);
@@ -87,6 +102,37 @@ export default function HomeScreen({ mode = 'Trending' }) {
     })();
     return () => { mounted = false; };
   }, []);
+
+  // Load tactics rating and subscribe to cross-screen changes
+  React.useEffect(() => {
+    (async () => {
+      const pref = await loadPreferences();
+      setTacticsRating(pref.chessTacticsRating);
+      if (pref.chessUsername) setImportUsername(pref.chessUsername);
+      setRatingLoaded(true);
+    })();
+    const unsub = onTacticsRatingChanged(({ rating, username }) => {
+      setTacticsRating(rating);
+      if (username != null) setImportUsername(username);
+    });
+    return unsub;
+  }, []);
+
+  const handleImportRating = async () => {
+    if (!importUsername) return;
+    try {
+      setImportingRating(true);
+      const res = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(importUsername)}/stats`);
+      const json = await res.json();
+      const rating = json?.tactics?.highest?.rating ?? null;
+      if (rating != null) {
+        setTacticsRating(rating);
+        await saveChessUsername(importUsername);
+        await setChessTacticsRating(rating);
+      }
+    } catch {}
+    finally { setImportingRating(false); }
+  };
 
   const handleIndexChange = React.useCallback(async (tableName, index) => {
     try {
@@ -171,14 +217,37 @@ export default function HomeScreen({ mode = 'Trending' }) {
           initialIndex={trendInitialIndex}
         />
       ) : (
-        // Add other mode components here
-        <BoardPager
-          boards={practiceData}
-          transitionMode="preload"
-          tableName="PracticePuzzles"
-          onIndexChange={(index) => handleIndexChange('PracticePuzzles', index)}
-          initialIndex={practiceInitialIndex}
-        />
+        // Practice tab: show rating gate if no rating imported
+        tacticsRating == null && ratingLoaded ? (
+          <View style={styles.importGate}>
+            <Ionicons name="school-outline" size={56} color={colors.primary} style={styles.importIcon} />
+            <Text style={styles.importTitle}>Import your rating</Text>
+            <Text style={styles.importSub}>We use your Chess.com tactics rating to match you with skill-appropriate puzzles.</Text>
+            <View style={styles.importCard}>
+              <Text style={styles.importLabel}>Chess.com Username</Text>
+              <TextInput
+                value={importUsername}
+                onChangeText={setImportUsername}
+                placeholder="e.g., jskarthik45"
+                style={styles.importInput}
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+              />
+              <Pressable onPress={handleImportRating} style={[styles.importBtn, { opacity: importUsername && !importingRating ? 1 : 0.6 }]} disabled={!importUsername || importingRating}>
+                <Text style={styles.importBtnText}>{importingRating ? 'Importing...' : 'Import Rating'}</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.importHelper}>This personalizes your puzzle difficulty in practice mode.</Text>
+          </View>
+        ) : (
+          <BoardPager
+            boards={practiceData}
+            transitionMode="preload"
+            tableName="PracticePuzzles"
+            onIndexChange={(index) => handleIndexChange('PracticePuzzles', index)}
+            initialIndex={practiceInitialIndex}
+          />
+        )
       )}
     </View>
   );

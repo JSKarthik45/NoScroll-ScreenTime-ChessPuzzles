@@ -5,6 +5,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useHeaderHeight } from '@react-navigation/elements';
 import BoardPanel from './BoardPanel';
 const EMPTY_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
+const DISTANCE_THRESHOLD = 0.05; // 5% of page height
 
 // We will preload the NEXT board instead of a blank transition
 
@@ -16,6 +17,7 @@ export default function BoardPager({ boards, transitionMode = 'blank', tableName
   const fallbackHeight = Math.max(1, windowHeight - insets.top - insets.bottom - tabBarHeight - headerHeight);
   const [pageHeight, setPageHeight] = useState(fallbackHeight);
   const listRef = useRef(null);
+  const scrollStartY = useRef(0);
 
   // Respond to length changes even if the array reference is stable
   const source = useMemo(() => (Array.isArray(boards) ? boards : []), [boards, boards?.length]);
@@ -68,6 +70,7 @@ export default function BoardPager({ boards, transitionMode = 'blank', tableName
 
   const PageItem = memo(function PageItem({ item, height, onAdvance }) {
     const board = item.board || {};
+    const isActive = item.slotKey === 'slot-0';
     return (
       <View style={{ height, overflow: 'hidden' }}>
         <BoardPanel
@@ -82,6 +85,7 @@ export default function BoardPager({ boards, transitionMode = 'blank', tableName
           autoAdvance={false}
           boardId={board.key}
           onMarkViewed={null}
+          isActive={isActive}
         />
       </View>
     );
@@ -130,6 +134,23 @@ export default function BoardPager({ boards, transitionMode = 'blank', tableName
     }
   }, [pageHeight, recycleForward, source.length]);
 
+  const onBeginDrag = useCallback((e) => {
+    scrollStartY.current = e.nativeEvent.contentOffset.y;
+  }, []);
+
+  const onEndDrag = useCallback((e) => {
+    const startY = scrollStartY.current;
+    const endY = e.nativeEvent.contentOffset.y;
+    const delta = endY - startY;
+    const fraction = Math.abs(delta) / pageHeight;
+    const shouldAdvance = delta > 0 && fraction >= DISTANCE_THRESHOLD;
+    if (shouldAdvance) {
+      listRef.current?.scrollToOffset({ offset: pageHeight, animated: true });
+    } else {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [pageHeight]);
+
   // If incoming boards shrink or grow, keep currentIdx in range
   useEffect(() => {
     if (source.length === 0) return;
@@ -148,7 +169,7 @@ export default function BoardPager({ boards, transitionMode = 'blank', tableName
         renderItem={renderItem}
         getItemLayout={getItemLayout}
         style={{ flex: 1 }}
-        pagingEnabled
+        scrollEnabled={true}
         decelerationRate="fast"
         disableIntervalMomentum={true}
         removeClippedSubviews={transitionMode !== 'preload'}
@@ -158,6 +179,8 @@ export default function BoardPager({ boards, transitionMode = 'blank', tableName
         windowSize={3}
         showsVerticalScrollIndicator={false}
         bounces={true}
+        onScrollBeginDrag={onBeginDrag}
+        onScrollEndDrag={onEndDrag}
         onMomentumScrollEnd={onScrollEnd}
       />
     </View>

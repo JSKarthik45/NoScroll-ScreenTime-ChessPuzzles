@@ -246,8 +246,24 @@ export async function setChessUsername(username = "") {
   try { await AsyncStorage.setItem(KEYS.chessUsername, username || ''); } catch {}
 }
 
+// Rating change event listeners
+const ratingListeners = new Set();
+export function onTacticsRatingChanged(handler) {
+  ratingListeners.add(handler);
+  return () => ratingListeners.delete(handler);
+}
+function emitTacticsRatingChanged(payload) {
+  ratingListeners.forEach((fn) => {
+    try { fn(payload); } catch {}
+  });
+}
+
 export async function setChessTacticsRating(rating = 1500) {
-  try { if (rating != null) await AsyncStorage.setItem(KEYS.chessTacticsRating, String(rating)); } catch {}
+  try {
+    if (rating != null) await AsyncStorage.setItem(KEYS.chessTacticsRating, String(rating));
+    const username = await AsyncStorage.getItem(KEYS.chessUsername) || '';
+    emitTacticsRatingChanged({ rating, username });
+  } catch {}
 }
 
 export async function clearChessImport() {
@@ -256,5 +272,6 @@ export async function clearChessImport() {
       AsyncStorage.removeItem(KEYS.chessUsername),
       AsyncStorage.removeItem(KEYS.chessTacticsRating),
     ]);
+    emitTacticsRatingChanged({ rating: null, username: '' });
   } catch {}
 }
