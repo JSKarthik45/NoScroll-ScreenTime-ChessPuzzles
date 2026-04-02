@@ -108,6 +108,7 @@ export default function OnboardingPager() {
   const [phase, setPhase] = useState('hook'); // 'hook' | 'action'
   const [usageGranted, setUsageGranted] = useState(false);
   const [overlayGranted, setOverlayGranted] = useState(false);
+  const [batteryUnrestricted, setBatteryUnrestricted] = useState(false);
   const { completeOnboarding } = useContext(OnboardingContext);
   const [blocked, setBlocked] = useState({});
   const [problemTarget, setProblemTarget] = useState(5);
@@ -202,6 +203,11 @@ export default function OnboardingPager() {
   const showFullWidthButton = phase === 'action' && (index === 1 || index === 2 || index === 3 || index === 4);
 
   const canContinueFromPermissions = usageGranted && overlayGranted;
+  const canShowBatteryButton = Platform.OS === 'android' && Number(Platform.Version) >= 23;
+  const manufacturer = String(Platform.constants?.Manufacturer || '').toLowerCase();
+  const isXiaomiFamily = ['xiaomi', 'redmi', 'poco'].includes(manufacturer);
+  const isOnePlusFamily = ['oneplus', 'oppo', 'realme'].includes(manufacturer);
+  const batteryNeedsAttention = canShowBatteryButton && !batteryUnrestricted;
 
   const handlePermissionsCta = () => {
     if (!canContinueFromPermissions) return;
@@ -240,6 +246,34 @@ export default function OnboardingPager() {
     await completeOnboarding();
   };
 
+  const openOnePlusPopupSettings = () => {
+    try {
+      if (PermissionModule?.openOnePlusBackgroundPopupSettings) {
+        PermissionModule.openOnePlusBackgroundPopupSettings();
+        return;
+      }
+      Linking.openSettings();
+    } catch (e) {
+      // silently ignore
+    }
+  };
+
+  const handleBatteryUnrestrictedPress = () => {
+    try {
+      if (PermissionModule?.requestIgnoreBatteryOptimizations) {
+        PermissionModule.requestIgnoreBatteryOptimizations();
+        return;
+      }
+      if (PermissionModule?.openBatteryOptimizationSettings) {
+        PermissionModule.openBatteryOptimizationSettings();
+        return;
+      }
+      Linking.openSettings();
+    } catch (e) {
+      // silently ignore
+    }
+  };
+
   // When entering the permissions page (or when app resumes), verify overlay & usage permissions
   useEffect(() => {
     const update = async () => {
@@ -253,6 +287,15 @@ export default function OnboardingPager() {
           setUsageGranted(!!usage);
         } catch (e) {
           // leave as-is on error
+        }
+      }
+
+      if (phase === 'action' && index === 3 && PermissionModule?.checkIgnoreBatteryOptimizations) {
+        try {
+          const ignoreOptimization = await PermissionModule.checkIgnoreBatteryOptimizations();
+          setBatteryUnrestricted(!!ignoreOptimization);
+        } catch (e) {
+          setBatteryUnrestricted(false);
         }
       }
     };
@@ -465,30 +508,96 @@ export default function OnboardingPager() {
           }
 
           if (item.key === 'oemPermissions') {
+            let deviceLabel = 'your phone';
+            let deviceInstruction = null;
+
+            if (isXiaomiFamily) {
+              deviceLabel = 'Xiaomi/Redmi';
+              deviceInstruction = (
+                <>
+                  <Text style={[styles.content, { textAlign: 'left' }]}>
+                    Open App info → Other permissions, then turn on "Display pop-up windows while running in the background" for this app.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      try {
+                        Linking.openSettings();
+                      } catch (e) {
+                        // silently ignore
+                      }
+                    }}
+                    style={{ marginTop: 10, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>Open Xiaomi app info</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            } else if (isOnePlusFamily) {
+              deviceLabel = 'OnePlus';
+              deviceInstruction = (
+                <>
+                  <Text style={[styles.content, { textAlign: 'left' }]}>
+                    Open Special access → Display pop-ups while in background, then allow this app so puzzles can appear while blocking runs.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={openOnePlusPopupSettings}
+                    style={{ marginTop: 10, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>Open OnePlus pop-up permission</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            } else {
+              deviceInstruction = (
+                <Text style={[styles.content, { textAlign: 'left', color: colors.muted }]}>
+                  No extra manufacturer permission is needed for this device.
+                </Text>
+              );
+            }
+
             return (
-              <View style={[styles.pageAction, { width, backgroundColor: colors.background }]}> 
+              <View
+                style={[
+                  styles.pageAction,
+                  {
+                    width,
+                    backgroundColor: colors.background,
+                    paddingBottom: insets.bottom + 110,
+                  },
+                ]}
+              >
                 <Text style={[styles.title, { color: colors.primary }]}>Make it work on your phone</Text>
                 <Text style={[styles.subtitle, styles.subtitleAction, { color: colors.muted }]}>
-                  Some devices (like Xiaomi/Redmi or OnePlus) need one extra step so blocking keeps working in the background.
+                  We only show the setting your device actually needs.
                 </Text>
-                <Text style={[styles.content, { textAlign: 'left' }]}>
-                  1. If you have a Xiaomi/Redmi phone: open App info → Other permissions and turn on "Display pop-up windows while running in the background" for this app.{"\n"}
+                <Text style={[styles.content, { textAlign: 'left', fontWeight: '700' }]}>
+                  {deviceLabel}
                 </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    try {
-                      Linking.openSettings();
-                    } catch (e) {
-                      // silently ignore
-                    }
-                  }}
-                  style={{ marginTop: 0, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
-                >
-                  <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>For Xiaomi/Redmi: Open app info</Text>
-                </TouchableOpacity>
-                <Text style={[styles.content, { marginTop: 15, textAlign: 'left' }]}>
-                  2. If you have a OnePlus phone: go to Settings → Apps & notifications → Special access → Display pop-ups while in background, find this app, and allow it so we can show puzzles while running in the background.
-                </Text>
+                {deviceInstruction}
+
+                {batteryNeedsAttention ? (
+                  <>
+                    <Text style={[styles.content, { marginTop: 18, textAlign: 'left' }]}>
+                      Battery optimization is still limiting this app. Set it to "Unrestricted" (Android 12+) or "Not optimized" (Android 6-11) so background blocking keeps running.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={handleBatteryUnrestrictedPress}
+                      style={{ marginTop: 10, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
+                    >
+                      <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>Battery: Set to Unrestricted</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : canShowBatteryButton ? (
+                  <Text style={[styles.content, { marginTop: 18, textAlign: 'left', color: '#2E7D32' }]}>
+                    Battery optimization is already handled. No action needed.
+                  </Text>
+                ) : null}
+
+                {!batteryNeedsAttention && canShowBatteryButton && (
+                  <Text style={[styles.content, { marginTop: 8, textAlign: 'left', color: '#2E7D32' }]}>
+                    Your device is already set for background operation.
+                  </Text>
+                )}
               </View>
             );
           }

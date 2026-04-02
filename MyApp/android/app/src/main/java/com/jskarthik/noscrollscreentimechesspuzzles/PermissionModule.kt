@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
 import com.facebook.react.bridge.Arguments
@@ -49,6 +50,88 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
     val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     reactApplicationContext.startActivity(intent)
+  }
+
+  @ReactMethod
+  fun openOnePlusBackgroundPopupSettings() {
+    val context = reactApplicationContext
+    val intentCandidates = listOf(
+      Intent().apply {
+        setClassName(
+          "com.coloros.safecenter",
+          "com.coloros.safecenter.permission.floatwindow.FloatWindowListActivity"
+        )
+      },
+      Intent().apply {
+        setClassName(
+          "com.oppo.safe",
+          "com.oppo.safe.permission.floatwindow.FloatWindowListActivity"
+        )
+      },
+      Intent().apply {
+        setClassName(
+          "com.coloros.safecenter",
+          "com.coloros.safecenter.permission.PermissionManagerActivity"
+        )
+      }
+    )
+
+    for (intent in intentCandidates) {
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      if (intent.resolveActivity(context.packageManager) != null) {
+        context.startActivity(intent)
+        return
+      }
+    }
+
+    // Fallback: open this app's details page.
+    val fallbackIntent = Intent(
+      Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+      Uri.parse("package:${context.packageName}")
+    )
+    fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(fallbackIntent)
+  }
+
+  @ReactMethod
+  fun checkIgnoreBatteryOptimizations(promise: Promise) {
+    try {
+      val powerManager = reactApplicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+      val ignoring = powerManager.isIgnoringBatteryOptimizations(reactApplicationContext.packageName)
+      promise.resolve(ignoring)
+    } catch (e: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  @ReactMethod
+  fun requestIgnoreBatteryOptimizations() {
+    val intent = Intent(
+      Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+      Uri.parse("package:${reactApplicationContext.packageName}")
+    )
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+      reactApplicationContext.startActivity(intent)
+    } catch (_: Exception) {
+      openBatteryOptimizationSettings()
+    }
+  }
+
+  @ReactMethod
+  fun openBatteryOptimizationSettings() {
+    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+      reactApplicationContext.startActivity(intent)
+    } catch (_: Exception) {
+      val fallbackIntent = Intent(
+        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        Uri.parse("package:${reactApplicationContext.packageName}")
+      )
+      fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      reactApplicationContext.startActivity(fallbackIntent)
+    }
   }
 
   /**
