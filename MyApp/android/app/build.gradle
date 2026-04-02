@@ -98,8 +98,8 @@ android {
         applicationId 'com.jskarthik.noscrollscreentimechesspuzzles'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "0.7.3"
+        versionCode 3
+        versionName "0.7.4"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
