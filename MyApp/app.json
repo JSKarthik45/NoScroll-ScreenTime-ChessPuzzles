@@ -3,7 +3,7 @@
     "name": "No Scroll: Screen Time - Chess Puzzles",
     "slug": "no-scroll-screen-time-chess-puzzles",
     "scheme": "no-scroll-screen-time-chess-puzzles",
-    "version": "0.7.0",
+    "version": "0.7.3",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "automatic",

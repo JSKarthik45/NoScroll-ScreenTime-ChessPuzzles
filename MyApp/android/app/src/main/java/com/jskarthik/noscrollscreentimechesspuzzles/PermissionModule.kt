@@ -61,36 +61,106 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
           "com.coloros.safecenter",
           "com.coloros.safecenter.permission.floatwindow.FloatWindowListActivity"
         )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
+      },
+      Intent().apply {
+        setClassName(
+          "com.coloros.safecenter",
+          "com.coloros.safecenter.permission.singlepage.PermissionSinglePageActivity"
+        )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
+      },
+      Intent().apply {
+        setClassName(
+          "com.oplus.safecenter",
+          "com.oplus.safecenter.permission.floatwindow.FloatWindowListActivity"
+        )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
+      },
+      Intent().apply {
+        setClassName(
+          "com.oplus.safecenter",
+          "com.oplus.safecenter.permission.singlepage.PermissionSinglePageActivity"
+        )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
       },
       Intent().apply {
         setClassName(
           "com.oppo.safe",
           "com.oppo.safe.permission.floatwindow.FloatWindowListActivity"
         )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
       },
       Intent().apply {
         setClassName(
           "com.coloros.safecenter",
           "com.coloros.safecenter.permission.PermissionManagerActivity"
         )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
+      },
+      Intent().apply {
+        setClassName(
+          "com.oplus.safecenter",
+          "com.oplus.safecenter.permission.PermissionManagerActivity"
+        )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
       }
     )
 
-    for (intent in intentCandidates) {
-      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      if (intent.resolveActivity(context.packageManager) != null) {
-        context.startActivity(intent)
+    try {
+      for (intent in intentCandidates) {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+          context.startActivity(intent)
+          return
+        } catch (_: Exception) {
+          // Try next candidate.
+        }
+      }
+
+      // Fallback 1: app details page (closer to OnePlus background popup path than generic overlay panel).
+      val appDetailsIntent = Intent(
+        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        Uri.parse("package:${context.packageName}")
+      )
+      appDetailsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      try {
+        context.startActivity(appDetailsIntent)
         return
+      } catch (_: Exception) {
+        // continue to final fallback
       }
-    }
 
-    // Fallback: open this app's details page.
-    val fallbackIntent = Intent(
-      Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-      Uri.parse("package:${context.packageName}")
-    )
-    fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    context.startActivity(fallbackIntent)
+      // Fallback 2: standard Android overlay special access.
+      val overlayIntent = Intent(
+        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+        Uri.parse("package:${context.packageName}")
+      )
+      overlayIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      try {
+        context.startActivity(overlayIntent)
+        return
+      } catch (_: Exception) {
+        // final fallback below
+      }
+
+      // Final fallback: app details page.
+      val fallbackIntent = Intent(
+        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        Uri.parse("package:${context.packageName}")
+      )
+      fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(fallbackIntent)
+    } catch (_: Exception) {
+      // swallow to avoid crashing the app if OEM settings are blocked
+    }
   }
 
   @ReactMethod
