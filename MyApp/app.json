@@ -3,7 +3,7 @@
     "name": "NoScroll",
     "slug": "no-scroll-screen-time-chess-puzzles",
     "scheme": "no-scroll-screen-time-chess-puzzles",
-    "version": "0.7.4",
+    "version": "0.7.5",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo.jpeg",
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -26,7 +26,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/logo.jpeg"
+      "favicon": "./assets/logo.png"
     },
     "extra": {
       "eas": {
@@ -40,7 +40,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#000000",
-          "image": "./assets/logo2.jpeg",
+          "image": "./assets/logo2.png",
           "imageWidth": 200,
           "resizeMode": "contain"
         }
