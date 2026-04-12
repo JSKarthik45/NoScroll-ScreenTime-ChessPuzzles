@@ -19,6 +19,50 @@ import com.facebook.react.bridge.ReactMethod
 class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
   override fun getName(): String = "PermissionModule"
 
+  private fun isOnePlusFamilyDevice(): Boolean {
+    val manufacturer = (Build.MANUFACTURER ?: "").lowercase()
+    return manufacturer.contains("oneplus") || manufacturer.contains("oppo") || manufacturer.contains("realme")
+  }
+
+  private fun isAppOpAllowed(opName: String): Boolean {
+    return try {
+      val appOps = reactApplicationContext.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+      val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        appOps.unsafeCheckOpNoThrow(opName, Process.myUid(), reactApplicationContext.packageName)
+      } else {
+        @Suppress("DEPRECATION")
+        appOps.checkOpNoThrow(opName, Process.myUid(), reactApplicationContext.packageName)
+      }
+      mode == AppOpsManager.MODE_ALLOWED
+    } catch (_: Exception) {
+      false
+    }
+  }
+
+  private fun getAppOpMode(opName: String): Int? {
+    return try {
+      val appOps = reactApplicationContext.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        appOps.unsafeCheckOpNoThrow(opName, Process.myUid(), reactApplicationContext.packageName)
+      } else {
+        @Suppress("DEPRECATION")
+        appOps.checkOpNoThrow(opName, Process.myUid(), reactApplicationContext.packageName)
+      }
+    } catch (_: Exception) {
+      null
+    }
+  }
+
+  private fun tryOpenIntent(intent: Intent): Boolean {
+    return try {
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      reactApplicationContext.startActivity(intent)
+      true
+    } catch (_: Exception) {
+      false
+    }
+  }
+
   @ReactMethod
   fun checkOverlayPermission(promise: Promise) {
     promise.resolve(Settings.canDrawOverlays(reactApplicationContext))
@@ -55,11 +99,34 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
   @ReactMethod
   fun openOnePlusBackgroundPopupSettings() {
     val context = reactApplicationContext
+
+    // Search order matters: first try the OnePlus/Oppo "Special app permissions"
+    // surfaces that contain "Display pop-ups while in background".
     val intentCandidates = listOf(
+      Intent("android.settings.MANAGE_SPECIAL_APP_ACCESSES").apply {
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
+      },
+      Intent().apply {
+        setClassName(
+          "com.oplus.safecenter",
+          "com.oplus.safecenter.permission.PermissionAppAllPermissionActivity"
+        )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
+      },
       Intent().apply {
         setClassName(
           "com.coloros.safecenter",
-          "com.coloros.safecenter.permission.floatwindow.FloatWindowListActivity"
+          "com.coloros.safecenter.permission.PermissionAppAllPermissionActivity"
+        )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
+      },
+      Intent().apply {
+        setClassName(
+          "com.oplus.safecenter",
+          "com.oplus.safecenter.permission.singlepage.PermissionSinglePageActivity"
         )
         putExtra("packageName", context.packageName)
         putExtra("pkg_name", context.packageName)
@@ -75,23 +142,7 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
       Intent().apply {
         setClassName(
           "com.oplus.safecenter",
-          "com.oplus.safecenter.permission.floatwindow.FloatWindowListActivity"
-        )
-        putExtra("packageName", context.packageName)
-        putExtra("pkg_name", context.packageName)
-      },
-      Intent().apply {
-        setClassName(
-          "com.oplus.safecenter",
-          "com.oplus.safecenter.permission.singlepage.PermissionSinglePageActivity"
-        )
-        putExtra("packageName", context.packageName)
-        putExtra("pkg_name", context.packageName)
-      },
-      Intent().apply {
-        setClassName(
-          "com.oppo.safe",
-          "com.oppo.safe.permission.floatwindow.FloatWindowListActivity"
+          "com.oplus.safecenter.permission.PermissionManagerActivity"
         )
         putExtra("packageName", context.packageName)
         putExtra("pkg_name", context.packageName)
@@ -107,7 +158,23 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
       Intent().apply {
         setClassName(
           "com.oplus.safecenter",
-          "com.oplus.safecenter.permission.PermissionManagerActivity"
+          "com.oplus.safecenter.permission.floatwindow.FloatWindowListActivity"
+        )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
+      },
+      Intent().apply {
+        setClassName(
+          "com.coloros.safecenter",
+          "com.coloros.safecenter.permission.floatwindow.FloatWindowListActivity"
+        )
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
+      },
+      Intent().apply {
+        setClassName(
+          "com.oppo.safe",
+          "com.oppo.safe.permission.floatwindow.FloatWindowListActivity"
         )
         putExtra("packageName", context.packageName)
         putExtra("pkg_name", context.packageName)
@@ -138,19 +205,6 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
         // continue to final fallback
       }
 
-      // Fallback 2: standard Android overlay special access.
-      val overlayIntent = Intent(
-        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-        Uri.parse("package:${context.packageName}")
-      )
-      overlayIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      try {
-        context.startActivity(overlayIntent)
-        return
-      } catch (_: Exception) {
-        // final fallback below
-      }
-
       // Final fallback: app details page.
       val fallbackIntent = Intent(
         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -160,6 +214,200 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
       context.startActivity(fallbackIntent)
     } catch (_: Exception) {
       // swallow to avoid crashing the app if OEM settings are blocked
+    }
+  }
+
+  @ReactMethod
+  fun checkOnePlusBackgroundPopupPermission(promise: Promise) {
+    try {
+      if (!isOnePlusFamilyDevice()) {
+        promise.resolve(true)
+        return
+      }
+
+      // Keep this strict: only check OnePlus/Oppo background pop-up style ops.
+      // Do not fall back to generic draw-over-apps/overlay permission checks.
+      val opCandidates = listOf(
+        "android:oppo_background_popup",
+        "android:oplus_background_popup",
+        "android:background_popup",
+        "android:display_popup_window_in_background",
+        "android:start_activity_in_background",
+        "android:background_start_activity"
+      )
+
+      val granted = opCandidates.any { op -> isAppOpAllowed(op) }
+      promise.resolve(granted)
+    } catch (_: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  @ReactMethod
+  fun checkSpecialAppPermissionSupport(permissionKey: String, promise: Promise) {
+    try {
+      if (permissionKey != "displayPopupsBackground") {
+        val fallback = Arguments.createMap()
+        fallback.putBoolean("supported", false)
+        fallback.putBoolean("granted", false)
+        promise.resolve(fallback)
+        return
+      }
+
+      // Only use this probe for devices that expose the permission as a special app permission surface.
+      // If the special app permission path is unavailable, report unsupported so JS can bypass strict gating.
+      val candidateOps = listOf(
+        "android:oppo_background_popup",
+        "android:oplus_background_popup",
+        "android:background_popup",
+        "android:display_popup_window_in_background",
+        "android:start_activity_in_background",
+        "android:background_start_activity"
+      )
+
+      val modes = candidateOps.mapNotNull { getAppOpMode(it) }
+      val supported = modes.any { it != AppOpsManager.MODE_ERRORED }
+      val granted = supported && modes.any { it == AppOpsManager.MODE_ALLOWED }
+
+      val result = Arguments.createMap()
+      result.putBoolean("supported", supported)
+      result.putBoolean("granted", granted)
+      promise.resolve(result)
+    } catch (_: Exception) {
+      val result = Arguments.createMap()
+      result.putBoolean("supported", false)
+      result.putBoolean("granted", false)
+      promise.resolve(result)
+    }
+  }
+
+  @ReactMethod
+  fun checkBackgroundPopupPermissionForGenericDevices(promise: Promise) {
+    try {
+      val manufacturer = (Build.MANUFACTURER ?: "").lowercase()
+      val isRedmi = manufacturer.contains("redmi")
+
+      if (isOnePlusFamilyDevice() || isRedmi) {
+        promise.resolve(true)
+        return
+      }
+
+      val opCandidates = listOf(
+        "android:background_popup",
+        "android:display_popup_window_in_background",
+        "android:miui_background_popup",
+        "android:background_start_activity",
+        "android:start_activity_in_background",
+        "android:bg_start_activity"
+      )
+
+      val granted = opCandidates.any { op -> isAppOpAllowed(op) }
+      promise.resolve(granted)
+    } catch (_: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  @ReactMethod
+  fun openBackgroundPopupSettingsForGenericDevices(promise: Promise) {
+    try {
+      val context = reactApplicationContext
+      val manufacturer = (Build.MANUFACTURER ?: "").lowercase()
+      val isRedmi = manufacturer.contains("redmi")
+
+      val result = Arguments.createMap()
+
+      if (isOnePlusFamilyDevice() || isRedmi) {
+        result.putBoolean("opened", false)
+        result.putBoolean("openedSpecific", false)
+        result.putBoolean("usedFallbackAppInfo", false)
+        result.putBoolean("skipped", true)
+        promise.resolve(result)
+        return
+      }
+
+      val candidates = mutableListOf<Intent>()
+
+      // Requirement: try Special app permissions first.
+      candidates.add(Intent("android.settings.MANAGE_SPECIAL_APP_ACCESSES").apply {
+        putExtra("packageName", context.packageName)
+        putExtra("pkg_name", context.packageName)
+      })
+
+      when {
+        manufacturer.contains("xiaomi") || manufacturer.contains("poco") -> {
+          candidates.add(Intent().apply {
+            setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity")
+            putExtra("extra_pkgname", context.packageName)
+          })
+          candidates.add(Intent().apply {
+            setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.AppPermissionsEditorActivity")
+            putExtra("extra_pkgname", context.packageName)
+          })
+        }
+        manufacturer.contains("samsung") -> {
+          candidates.add(Intent().apply {
+            setClassName("com.samsung.android.packageinstaller", "com.samsung.android.packageinstaller.permission.ui.ManagePermissionsActivity")
+            putExtra("package", context.packageName)
+          })
+          candidates.add(Intent().apply {
+            setClassName("com.samsung.android.sm", "com.samsung.android.sm.ui.ram.AutoRunActivity")
+          })
+        }
+        manufacturer.contains("huawei") || manufacturer.contains("honor") -> {
+          candidates.add(Intent().apply {
+            setClassName("com.huawei.systemmanager", "com.huawei.permissionmanager.ui.MainActivity")
+          })
+        }
+        manufacturer.contains("vivo") -> {
+          candidates.add(Intent().apply {
+            setClassName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager")
+          })
+          candidates.add(Intent().apply {
+            setClassName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")
+          })
+        }
+        manufacturer.contains("motorola") -> {
+          candidates.add(Intent().apply {
+            setClassName("com.motorola.ccc.ota", "com.motorola.ccc.ota.ui.MainActivity")
+          })
+        }
+      }
+
+      candidates.add(Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS))
+
+      for (intent in candidates) {
+        if (tryOpenIntent(intent)) {
+          result.putBoolean("opened", true)
+          result.putBoolean("openedSpecific", true)
+          result.putBoolean("usedFallbackAppInfo", false)
+          result.putBoolean("skipped", false)
+          promise.resolve(result)
+          return
+        }
+      }
+
+      val appInfoIntent = Intent(
+        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        Uri.parse("package:${context.packageName}")
+      )
+
+      if (tryOpenIntent(appInfoIntent)) {
+        result.putBoolean("opened", true)
+        result.putBoolean("openedSpecific", false)
+        result.putBoolean("usedFallbackAppInfo", true)
+        result.putBoolean("skipped", false)
+        promise.resolve(result)
+        return
+      }
+
+      result.putBoolean("opened", false)
+      result.putBoolean("openedSpecific", false)
+      result.putBoolean("usedFallbackAppInfo", true)
+      result.putBoolean("skipped", false)
+      promise.resolve(result)
+    } catch (e: Exception) {
+      promise.reject("GENERIC_POPUP_SETTINGS_ERROR", "Failed to open background popup permission settings", e)
     }
   }
 

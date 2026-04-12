@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { getChessBoardColors } from '../theme/colors';
@@ -34,6 +34,8 @@ const ChessBoard = forwardRef(function ChessBoard({ fen = 'start', size = 320, b
   const pieceColorBlack = boardColors.pieceBlack;
   const highlightColor = boardColors.highlight;
   const moveDotColor = boardColors.moveDot;
+  const lastMoveRingColor = 'rgba(55, 62, 126, 0.92)';
+  const lastMoveDotColor = 'rgba(55, 62, 126, 0.92)';
 
   const [game] = useState(() => {
     if (!ChessLib) return null;
@@ -63,10 +65,9 @@ const ChessBoard = forwardRef(function ChessBoard({ fen = 'start', size = 320, b
   });
   const [selected, setSelected] = useState(null); // { r, c, square }
   const [legalTargets, setLegalTargets] = useState([]); // ['e4','e5'] etc.
+  const [lastMove, setLastMove] = useState(null); // { from, to }
 
   const algebraicFromRC = (r, c) => String.fromCharCode(97 + c) + (8 - r);
-  const rcFromAlgebraic = sq => ({ r: 8 - parseInt(sq[1], 10), c: sq.charCodeAt(0) - 97 });
-
   const refreshBoard = () => {
     if (!game) return;
     setBoardData(game.board().map(rank => rank.map(cell => {
@@ -80,7 +81,10 @@ const ChessBoard = forwardRef(function ChessBoard({ fen = 'start', size = 320, b
       if (!game) return null;
       let moveObj = null;
       try { moveObj = game.move(san); } catch (e) { /* invalid */ }
-      if (moveObj) { refreshBoard(); }
+      if (moveObj) {
+        setLastMove({ from: moveObj.from, to: moveObj.to });
+        refreshBoard();
+      }
       return moveObj;
     },
   }), [game]);
@@ -106,6 +110,9 @@ const ChessBoard = forwardRef(function ChessBoard({ fen = 'start', size = 320, b
       } catch (e) { /* invalid move ignore */ }
       setSelected(null);
       setLegalTargets([]);
+      if (moveObj) {
+        setLastMove({ from: moveObj.from, to: moveObj.to });
+      }
       refreshBoard();
       if (moveObj && onMove) {
         // Provide minimal move payload (SAN + from/to)
@@ -139,6 +146,7 @@ const ChessBoard = forwardRef(function ChessBoard({ fen = 'start', size = 320, b
     lastLoadedFenRef.current = fen;
     setSelected(null);
     setLegalTargets([]);
+    setLastMove(null);
     refreshBoard();
   }, [fen, game]);
 
@@ -146,26 +154,13 @@ const ChessBoard = forwardRef(function ChessBoard({ fen = 'start', size = 320, b
     const squareAlg = algebraicFromRC(r, c);
     const isSelected = selected && selected.square === squareAlg;
     const isLegal = legalTargets.includes(squareAlg);
-    const iconSize = squareSize * 0.80;
+    const isLastMoveFrom = lastMove && lastMove.from === squareAlg;
+    const isLastMoveTo = lastMove && lastMove.to === squareAlg;
+    const iconSize = squareSize * 0.8;
     return (
       <>
         {sq ? (
-          <View style={{ padding: squareSize * 0.05, alignItems: 'center', justifyContent: 'center' }}>
-            {/* Background "Outline" Icon */}
-            <FontAwesome5
-              name={iconNameFromType[sq[1].toLowerCase()]}
-              size={iconSize}
-              color={sq[0] === 'w' ? '#000' : '#fff'}
-              solid
-              style={{
-                position: 'absolute',
-                textShadowColor: sq[0] === 'w' ? '#000' : '#fff',
-                textShadowOffset: { width: 0, height: 0 },
-                textShadowRadius: 2,
-              }}
-            />
-
-            {/* Main Foreground Icon */}
+          <View style={{ width: squareSize, height: squareSize, alignItems: 'center', justifyContent: 'center', padding: squareSize * 0.08 }}>
             <FontAwesome5
               name={iconNameFromType[sq[1].toLowerCase()]}
               size={iconSize}
@@ -174,16 +169,41 @@ const ChessBoard = forwardRef(function ChessBoard({ fen = 'start', size = 320, b
               style={{
                 textShadowColor: sq[0] === 'w' ? '#000' : '#fff',
                 textShadowOffset: { width: 0, height: 0 },
-                textShadowRadius: 2,
+                textShadowRadius: 4,
               }}
             />
           </View>
         ) : null}
+        {(isLastMoveFrom || isLastMoveTo) && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              inset: 3,
+              borderWidth: isLastMoveTo ? 3 : 2,
+              borderColor: lastMoveRingColor,
+              borderRadius: 6,
+              backgroundColor: 'transparent',
+            }}
+          />
+        )}
+        {isLastMoveTo && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              width: squareSize * 0.16,
+              height: squareSize * 0.16,
+              borderRadius: 999,
+              backgroundColor: lastMoveDotColor,
+            }}
+          />
+        )}
         {isLegal && (
-          <View style={{ position: 'absolute', width: squareSize * 0.3, height: squareSize * 0.3, borderRadius: 999, backgroundColor: moveDotColor, opacity: 0.5 }} />
+          <View style={{ position: 'absolute', width: squareSize * 0.24, height: squareSize * 0.24, borderRadius: 999, backgroundColor: moveDotColor, opacity: 0.45 }} />
         )}
         {isSelected && (
-          <View style={{ position: 'absolute', inset: 0, borderWidth: 2, borderColor: highlightColor, borderRadius: 4 }} />
+          <View style={{ position: 'absolute', inset: 1, borderWidth: 2, borderColor: highlightColor, borderRadius: 3 }} />
         )}
       </>
     );
@@ -194,7 +214,7 @@ const ChessBoard = forwardRef(function ChessBoard({ fen = 'start', size = 320, b
 
   return (
     <View style={{ opacity: 0.99 }}>
-    <View style={{ width: size, height: size, borderRadius, overflow: 'hidden', backgroundColor: boardColors.frame, borderWidth: 0, borderColor: boardColors.border }}>
+    <View style={{ width: size, height: size, borderRadius, overflow: 'hidden', backgroundColor: boardColors.frame }}>
       {rowOrder.map((r) => (
         <View key={`r-${r}`} style={{ flexDirection: 'row' }}>
           {colOrder.map((c) => {
