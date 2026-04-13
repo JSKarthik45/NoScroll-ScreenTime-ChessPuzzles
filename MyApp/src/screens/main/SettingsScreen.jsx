@@ -402,7 +402,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>Legal</Text>
       </View>
       <View style={styles.linkList}>
-        <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech/noscroll-privacy-policy')}>
+        <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech/noscroll-privacy')}>
           <Ionicons name="lock-closed-outline" size={22} color={colors.text} />
           <Text style={styles.linkLabel}>Privacy Policy</Text>
           <Ionicons name="open-outline" size={20} color={colors.muted} style={styles.linkIconRight} />
