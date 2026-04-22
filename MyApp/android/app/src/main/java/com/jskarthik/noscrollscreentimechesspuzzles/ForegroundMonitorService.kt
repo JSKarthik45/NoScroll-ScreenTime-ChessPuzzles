@@ -108,6 +108,11 @@ class ForegroundMonitorService : Service() {
     // Load blocked configuration and progress from SharedPreferences
     val prefs = getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
 
+    // Daily goal and today's progress
+    val target = prefs.getInt("problem_target", 0)
+    val storedDate = prefs.getString("today_date", null)
+    val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+
     // Check if blocking is currently enabled
     val blockingEnabled = prefs.getBoolean("blocking_enabled", false)
     if (!blockingEnabled) {
@@ -115,11 +120,7 @@ class ForegroundMonitorService : Service() {
       return
     }
 
-    // Daily goal and today's progress
-    val target = prefs.getInt("problem_target", 0)
-    val storedDate = prefs.getString("today_date", null)
     val storedCount = prefs.getInt("today_count", 0)
-    val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
     // If the user has already reached or exceeded today's goal, disable blocking for today.
     if (target > 0 && storedDate == today && storedCount >= target) {

@@ -13,7 +13,13 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
             val prefs = context.getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
+            val hasOnboarded = prefs.getBoolean("has_onboarded", false)
             val blockingEnabled = prefs.getBoolean("blocking_enabled", false)
+
+            // Re-arm midnight reset after reboot so daily reset does not depend on app launch.
+            if (hasOnboarded) {
+                MidnightResetReceiver.scheduleMidnightAlarm(context)
+            }
             
             // Only restart the service if blocking was enabled before reboot
             if (blockingEnabled) {
