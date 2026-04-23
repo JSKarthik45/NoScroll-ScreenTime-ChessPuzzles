@@ -6,7 +6,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /**
  * BroadcastReceiver that fires at midnight to reset blocking for the new day.
@@ -16,6 +19,8 @@ class MidnightResetReceiver : BroadcastReceiver() {
     
     override fun onReceive(context: Context, intent: Intent?) {
         val prefs = context.getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val storedDate = prefs.getString("today_date", null)
         
         // Check if user has completed onboarding (blocking was ever enabled)
         val hasOnboarded = prefs.getBoolean("has_onboarded", false)
@@ -23,10 +28,16 @@ class MidnightResetReceiver : BroadcastReceiver() {
             // User hasn't completed onboarding, don't enable blocking
             return
         }
+
+        // Avoid duplicate resets if multiple broadcasts/alarms arrive the same day.
+        if (storedDate == today) {
+            scheduleMidnightAlarm(context)
+            return
+        }
         
         // Reset today's count and enable blocking for the new day
         prefs.edit()
-            .remove("today_date")
+            .putString("today_date", today)
             .putInt("today_count", 0)
             .putBoolean("blocking_enabled", true)
             .apply()
@@ -69,19 +80,46 @@ class MidnightResetReceiver : BroadcastReceiver() {
                 set(Calendar.MILLISECOND, 0)
             }
             
-            // Use setExactAndAllowWhileIdle for reliable delivery on newer Android versions
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
-                    pendingIntent
-                )
-            } else {
-                alarmManager.setExact(
-                    AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
-                    pendingIntent
-                )
+            // Prefer exact delivery; gracefully fallback if exact alarms are unavailable.
+            try {
+                when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms() -> {
+                        alarmManager.setAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            calendar.timeInMillis,
+                            pendingIntent
+                        )
+                    }
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                        alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            calendar.timeInMillis,
+                            pendingIntent
+                        )
+                    }
+                    else -> {
+                        alarmManager.setExact(
+                            AlarmManager.RTC_WAKEUP,
+                            calendar.timeInMillis,
+                            pendingIntent
+                        )
+                    }
+                }
+            } catch (_: SecurityException) {
+                // Some OEMs can still reject exact alarms; fallback keeps autonomous daily reset alive.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        calendar.timeInMillis,
+                        pendingIntent
+                    )
+                } else {
+                    alarmManager.set(
+                        AlarmManager.RTC_WAKEUP,
+                        calendar.timeInMillis,
+                        pendingIntent
+                    )
+                }
             }
         }
         

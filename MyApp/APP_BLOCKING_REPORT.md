@@ -102,9 +102,12 @@ The persistent state lives in [src/storage/preferences.js](src/storage/preferenc
 - `startMonitoring`, `stopMonitoring`, `enableBlocking`, and `disableBlocking` control the active blocking state.
 
 ## Midnight And Reboot Behavior
-- [android/app/src/main/java/com/jskarthik/noscrollscreentimechesspuzzles/MidnightResetReceiver.kt](android/app/src/main/java/com/jskarthik/noscrollscreentimechesspuzzles/MidnightResetReceiver.kt) resets the daily count at midnight and re-enables blocking for a new day.
-- [android/app/src/main/java/com/jskarthik/noscrollscreentimechesspuzzles/BootReceiver.kt](android/app/src/main/java/com/jskarthik/noscrollscreentimechesspuzzles/BootReceiver.kt) restores the foreground monitor after device reboot when blocking was enabled before reboot.
-- The alarm is rescheduled after each midnight reset so the daily loop remains stable.
+- [android/app/src/main/java/com/jskarthik/noscrollscreentimechesspuzzles/MidnightResetReceiver.kt](android/app/src/main/java/com/jskarthik/noscrollscreentimechesspuzzles/MidnightResetReceiver.kt) is the authoritative daily-reset path. At day rollover it sets `today_date` to today, resets `today_count`, and re-enables `blocking_enabled`.
+- Midnight alarm scheduling prefers exact delivery (`setExactAndAllowWhileIdle`) and falls back gracefully when exact alarms are unavailable or rejected on OEM builds.
+- Duplicate same-day alarm deliveries are ignored safely: if `today_date` already matches today, the receiver only reschedules the next midnight alarm.
+- [android/app/src/main/java/com/jskarthik/noscrollscreentimechesspuzzles/BootReceiver.kt](android/app/src/main/java/com/jskarthik/noscrollscreentimechesspuzzles/BootReceiver.kt) also listens for boot/time/date/package-update events to keep scheduling and day-state consistent without requiring app launch.
+- On those events, if onboarding is complete, the app re-arms the midnight alarm and recovers new-day state (`today_date`, `today_count`, `blocking_enabled`) when needed.
+- If blocking is enabled after recovery, the foreground monitor service is started so enforcement resumes immediately.
 
 ## Settings And User Controls
 The blocking controls live in [src/screens/main/SettingsScreen.jsx](src/screens/main/SettingsScreen.jsx).
@@ -136,7 +139,7 @@ The blocking experience is not a dead-end screen. It leads into the puzzle UI th
 - The app does not hard-block the user on OEM permission checks when the OS does not expose a verifiable special-app-permission path.
 - The user can pause blocking from settings and the service notification.
 - The daily goal can disable blocking after the required puzzle count is reached.
-- Reboot and midnight transitions are handled so the monitoring loop keeps working across sessions.
+- Midnight reset remains autonomous (no app-open dependency), and reboot/time/date/package-update transitions are handled so daily blocking resume remains reliable across sessions.
 
 ## Recent UI/logic refinements captured in this codebase
 - Chess pieces were restored to the previous FontAwesome icon set.
