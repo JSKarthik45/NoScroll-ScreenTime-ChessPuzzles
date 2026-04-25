@@ -539,8 +539,9 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
   }
 
   /**
-   * Resume monitoring on app startup. This respects the current blocking state.
-   * Daily reset is handled by MidnightResetReceiver.
+   * Resume monitoring on app startup. This respects the current blocking state
+   * and checks if a new day has started (resets blocking if so).
+   * Does NOT force-enable blocking if it was disabled (e.g., goal was completed).
    */
   @ReactMethod
   fun resumeMonitoring() {
@@ -550,6 +551,19 @@ class PermissionModule(reactContext: ReactApplicationContext) : ReactContextBase
     // Only resume if user has completed onboarding
     val hasOnboarded = prefs.getBoolean("has_onboarded", false)
     if (!hasOnboarded) return
+    
+    // Check if it's a new day - if so, reset blocking
+    val storedDate = prefs.getString("today_date", null)
+    val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+    
+    if (storedDate != today) {
+      // New day: reset count and enable blocking
+      prefs.edit()
+        .putString("today_date", today)
+        .putInt("today_count", 0)
+        .putBoolean("blocking_enabled", true)
+        .apply()
+    }
     
     // Schedule/reschedule midnight alarm
     MidnightResetReceiver.scheduleMidnightAlarm(context)
