@@ -98,8 +98,8 @@ android {
         applicationId 'com.jskarthik.noscrollscreentimechesspuzzles'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "0.7.11"
+        versionCode 7
+        versionName "0.7.10"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -166,10 +166,6 @@ android {
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
-
-    implementation project(':react-native-purchases-ui')
-    implementation "com.google.android.material:material:1.10.0"
-
     implementation project(':react-native-purchases')
 
     implementation("com.facebook.react:react-android")
