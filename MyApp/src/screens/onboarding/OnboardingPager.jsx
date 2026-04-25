@@ -109,7 +109,6 @@ export default function OnboardingPager() {
   const [usageGranted, setUsageGranted] = useState(false);
   const [overlayGranted, setOverlayGranted] = useState(false);
   const [batteryUnrestricted, setBatteryUnrestricted] = useState(false);
-  const [onePlusPopupStatus, setOnePlusPopupStatus] = useState({ supported: false, granted: false });
   const { completeOnboarding } = useContext(OnboardingContext);
   const [blocked, setBlocked] = useState({});
   const [problemTarget, setProblemTarget] = useState(5);
@@ -207,35 +206,8 @@ export default function OnboardingPager() {
   const canShowBatteryButton = Platform.OS === 'android' && Number(Platform.Version) >= 23;
   const manufacturer = String(Platform.constants?.Manufacturer || '').toLowerCase();
   const isXiaomiFamily = ['xiaomi', 'redmi', 'poco'].includes(manufacturer);
-  const isRedmiFamily = manufacturer.includes('redmi');
   const isOnePlusFamily = ['oneplus', 'oppo', 'realme'].includes(manufacturer);
   const batteryNeedsAttention = canShowBatteryButton && !batteryUnrestricted;
-  const needsGenericPopupPermission = !isOnePlusFamily && !isRedmiFamily;
-  const onePlusPopupCheckSupported = isOnePlusFamily && onePlusPopupStatus.supported;
-  const onePlusPopupMissing = onePlusPopupCheckSupported && !onePlusPopupStatus.granted;
-  const canContinueFromOemPermissions = !batteryNeedsAttention && (!onePlusPopupCheckSupported || !onePlusPopupMissing);
-  const oemCtaDisabled = onePlusPopupCheckSupported && onePlusPopupMissing;
-  const oemCtaBackground = oemCtaDisabled ? colors.border : colors.primary;
-  const oemCtaTextColor = oemCtaDisabled ? 'black' : 'white';
-
-  const onePlusGuidance = [
-    'Required permission missing: Display pop-up windows while running in the background.',
-    'Steps on OnePlus:',
-    '1. Open Settings.',
-    '2. Go to Apps > Special app access (or Special app permissions).',
-    '3. Open Display pop-ups while running in background.',
-    '4. Find this app and set it to Allow.',
-    '5. Return to this screen and continue.',
-  ].join('\n');
-
-  const genericPopupGuidance = [
-    'Required permission missing: Display pop-up windows while running in the background.',
-    'How to enable it manually:',
-    '1. Open App info for this app.',
-    '2. Open Other permissions (or Special app permissions).',
-    '3. Enable Display pop-up windows while running in the background.',
-    '4. Return to this app and continue onboarding.',
-  ].join('\n');
 
   const handlePermissionsCta = () => {
     if (!canContinueFromPermissions) return;
@@ -245,46 +217,6 @@ export default function OnboardingPager() {
   };
 
   const startTrial = async () => {
-    let latestUsageGranted = usageGranted;
-    let latestOverlayGranted = overlayGranted;
-    let latestBatteryUnrestricted = batteryUnrestricted;
-    let latestOnePlusPopupStatus = onePlusPopupStatus;
-
-    if (PermissionModule?.checkUsageStatsPermission) {
-      try { latestUsageGranted = !!(await PermissionModule.checkUsageStatsPermission()); } catch {}
-    }
-    if (PermissionModule?.checkOverlayPermission) {
-      try { latestOverlayGranted = !!(await PermissionModule.checkOverlayPermission()); } catch {}
-    }
-    if (PermissionModule?.checkIgnoreBatteryOptimizations) {
-      try { latestBatteryUnrestricted = !!(await PermissionModule.checkIgnoreBatteryOptimizations()); } catch {}
-    }
-    if (isOnePlusFamily && PermissionModule?.checkSpecialAppPermissionSupport) {
-      try {
-        const support = await PermissionModule.checkSpecialAppPermissionSupport('displayPopupsBackground');
-        latestOnePlusPopupStatus = support || { supported: false, granted: false };
-      } catch {}
-    }
-
-    if (isOnePlusFamily && latestOnePlusPopupStatus?.supported && !latestOnePlusPopupStatus?.granted) {
-      Alert.alert('Permission required', onePlusGuidance);
-      return;
-    }
-    if (canShowBatteryButton && !latestBatteryUnrestricted) {
-      Alert.alert(
-        'Permission required',
-        'Battery optimization is still restricting background blocking. Set this app to Unrestricted (Android 12+) or Not optimized (Android 6-11), then continue.'
-      );
-      return;
-    }
-    if (!latestUsageGranted || !latestOverlayGranted) {
-      Alert.alert(
-        'Permissions required',
-        'Usage Access and Overlay permissions must be granted before you can finish onboarding.'
-      );
-      return;
-    }
-
     try {
       // Sync the latest blocked configuration to native so it can be used
       // by any background monitoring or future services.
@@ -301,18 +233,6 @@ export default function OnboardingPager() {
       // even when the app is in the background.
       if (PermissionModule && typeof PermissionModule.startMonitoring === 'function') {
         PermissionModule.startMonitoring();
-      }
-
-      // Verify that blocking is truly active before allowing onboarding to complete.
-      if (PermissionModule && typeof PermissionModule.isBlockingEnabled === 'function') {
-        const blockingEnabled = await PermissionModule.isBlockingEnabled();
-        if (!blockingEnabled) {
-          Alert.alert(
-            'Blocking inactive',
-            'Blocking is not active yet. Please grant all required permissions and try again to avoid crashes and ensure puzzles can block distractions.'
-          );
-          return;
-        }
       }
 
       // Start foreground polling for usage events while the app is open.
@@ -336,39 +256,6 @@ export default function OnboardingPager() {
     } catch (e) {
       // silently ignore
     }
-  };
-
-  const openGenericPopupSettings = async () => {
-    try {
-      if (PermissionModule?.openBackgroundPopupSettingsForGenericDevices) {
-        const result = await PermissionModule.openBackgroundPopupSettingsForGenericDevices();
-        if (result?.usedFallbackAppInfo) {
-          Alert.alert('Enable permission manually', genericPopupGuidance);
-        }
-        return;
-      }
-      Linking.openSettings();
-      Alert.alert('Enable permission manually', genericPopupGuidance);
-    } catch (e) {
-      Alert.alert('Enable permission manually', genericPopupGuidance);
-    }
-  };
-
-  const handleOemContinueCta = () => {
-    if (onePlusPopupCheckSupported && onePlusPopupMissing) {
-      Alert.alert('Permission required', onePlusGuidance);
-      return;
-    }
-    if (batteryNeedsAttention) {
-      Alert.alert(
-        'Permission required',
-        'Battery optimization is still restricting background blocking. Set this app to Unrestricted (Android 12+) or Not optimized (Android 6-11), then continue.'
-      );
-      return;
-    }
-    const next = 4;
-    setIndex(next);
-    listRef.current?.scrollToIndex({ index: next, animated: true });
   };
 
   const handleBatteryUnrestrictedPress = () => {
@@ -411,15 +298,6 @@ export default function OnboardingPager() {
           setBatteryUnrestricted(false);
         }
       }
-
-      if (phase === 'action' && index === 3 && isOnePlusFamily && PermissionModule?.checkSpecialAppPermissionSupport) {
-        try {
-          const support = await PermissionModule.checkSpecialAppPermissionSupport('displayPopupsBackground');
-          setOnePlusPopupStatus({ supported: !!support?.supported, granted: !!support?.granted });
-        } catch (e) {
-          setOnePlusPopupStatus({ supported: false, granted: false });
-        }
-      }
     };
 
     update();
@@ -431,7 +309,7 @@ export default function OnboardingPager() {
     return () => {
       sub.remove();
     };
-  }, [phase, index, PermissionModule, isOnePlusFamily]);
+  }, [phase, index, PermissionModule]);
 
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top }]} edges={['top', 'left', 'right']}>
@@ -443,7 +321,7 @@ export default function OnboardingPager() {
         showsHorizontalScrollIndicator={false}
         data={activePages}
         keyExtractor={(item) => item.key}
-        scrollEnabled={!(phase === 'action' && (index === 1 || index === 2 || index === 3))}
+        scrollEnabled={!(phase === 'action' && (index === 1 || index === 2))}
         onMomentumScrollEnd={(e) => {
           const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
           setIndex(newIndex);
@@ -659,7 +537,7 @@ export default function OnboardingPager() {
               deviceInstruction = (
                 <>
                   <Text style={[styles.content, { textAlign: 'left' }]}>
-                    If your phone exposes it under Special app permissions, enable "Display pop-up windows while running in the background" for this app.
+                    Open Special access → Display pop-ups while in background, then allow this app so puzzles can appear while blocking runs.
                   </Text>
                   <TouchableOpacity
                     onPress={openOnePlusPopupSettings}
@@ -667,31 +545,13 @@ export default function OnboardingPager() {
                   >
                     <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>Open OnePlus pop-up permission</Text>
                   </TouchableOpacity>
-                  {onePlusPopupCheckSupported && onePlusPopupMissing ? (
-                    <Text style={[styles.content, { marginTop: 10, textAlign: 'left', color: colors.error }]}>
-                      Missing permission: Display pop-up windows while running in the background.
-                    </Text>
-                  ) : (
-                    <Text style={[styles.content, { marginTop: 10, textAlign: 'left', color: '#2E7D32' }]}>
-                      OnePlus background pop-up permission is enabled.
-                    </Text>
-                  )}
                 </>
               );
             } else {
-              deviceLabel = 'Android device';
               deviceInstruction = (
-                <>
-                  <Text style={[styles.content, { textAlign: 'left' }]}>
-                    Open App info and look under Other permissions for "Display pop-up windows while running in the background".
-                  </Text>
-                  <TouchableOpacity
-                    onPress={openGenericPopupSettings}
-                    style={{ marginTop: 10, paddingVertical: 12, borderRadius: 10, alignSelf: 'stretch', backgroundColor: colors.primary }}
-                  >
-                    <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>Open App Info / Other permissions</Text>
-                  </TouchableOpacity>
-                </>
+                <Text style={[styles.content, { textAlign: 'left', color: colors.muted }]}>
+                  No extra manufacturer permission is needed for this device.
+                </Text>
               );
             }
 
@@ -727,7 +587,17 @@ export default function OnboardingPager() {
                       <Text style={{ color: 'white', fontWeight: '600', textAlign: 'center' }}>Battery: Set to Unrestricted</Text>
                     </TouchableOpacity>
                   </>
+                ) : canShowBatteryButton ? (
+                  <Text style={[styles.content, { marginTop: 18, textAlign: 'left', color: '#2E7D32' }]}>
+                    Battery optimization is already handled. No action needed.
+                  </Text>
                 ) : null}
+
+                {!batteryNeedsAttention && canShowBatteryButton && (
+                  <Text style={[styles.content, { marginTop: 8, textAlign: 'left', color: '#2E7D32' }]}>
+                    Your device is already set for background operation.
+                  </Text>
+                )}
               </View>
             );
           }
@@ -826,18 +696,14 @@ export default function OnboardingPager() {
       )}
       {phase === 'action' && index === 3 && (
         <TouchableOpacity
-          onPress={handleOemContinueCta}
-          disabled={oemCtaDisabled}
-          style={[
-            styles.fullButton,
-            {
-              bottom: insets.bottom + 24,
-              backgroundColor: oemCtaBackground,
-              opacity: oemCtaDisabled ? 0.6 : 1,
-            },
-          ]}
+          onPress={() => {
+            const next = 4;
+            setIndex(next);
+            listRef.current?.scrollToIndex({ index: next, animated: true });
+          }}
+          style={[styles.fullButton, { bottom: insets.bottom + 24, backgroundColor: colors.primary }]}
         >
-          <Text style={[styles.fullButtonText, { color: oemCtaTextColor }]}>Grant permissions to continue</Text>
+          <Text style={[styles.fullButtonText, { color: 'white' }]}>Continue</Text>
         </TouchableOpacity>
       )}
       {phase === 'action' && index === 4 && (
