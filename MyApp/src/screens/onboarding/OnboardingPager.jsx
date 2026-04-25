@@ -765,7 +765,7 @@ export default function OnboardingPager() {
                   pricing.
                 </Text>
                 <TouchableOpacity
-                  onPress={() => Linking.openURL('https://www.clutchess.tech/noscroll-privacy')}
+                  onPress={() => Linking.openURL('https://www.clutchess.tech/noscroll-privacy-policy')}
                   style={{ marginTop: 16, alignSelf: 'center' }}
                 >
                   <Text style={{ color: colors.primary, textDecorationLine: 'underline', fontSize: 14 }}>
