@@ -3,7 +3,7 @@
     "name": "NoScroll",
     "slug": "no-scroll-screen-time-chess-puzzles",
     "scheme": "no-scroll-screen-time-chess-puzzles",
-    "version": "0.7.6",
+    "version": "0.7.12",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "automatic",
