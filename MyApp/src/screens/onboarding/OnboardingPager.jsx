@@ -8,7 +8,8 @@ import { OnboardingContext } from '../../navigation/OnboardingContext';
 import { useThemeColors, useThemedStyles } from '../../theme/ThemeContext';
 import SettingsQuickSetup from '../../components/SettingsQuickSetup';
 import { startUsagePolling } from '../../services/usageLogger';
-import { loadPreferences, savePreferences, setBlocked as persistSetBlocked } from '../../storage/preferences';
+import { loadPreferences, savePreferences, setBlocked as persistSetBlocked, setLatestPuzzleId, setCachedPuzzles } from '../../storage/preferences';
+import { getPuzzlesData } from '../../services/getData';
 
 const { width } = Dimensions.get('window');
 
@@ -122,6 +123,23 @@ export default function OnboardingPager() {
       const pref = await loadPreferences();
       setBlocked(pref.blocked || {});
       setProblemTarget(pref.problemTarget ?? 5);
+    })();
+  }, []);
+
+  // Prefetch the first batch of puzzles in the background so they are ready instantly
+  useEffect(() => {
+    (async () => {
+      try {
+        const BUCKET_SIZE = 1000;
+        const PAGE_SIZE = 10;
+        const data = await getPuzzlesData('TrendingPuzzles', PAGE_SIZE, null, BUCKET_SIZE);
+        if (Array.isArray(data) && data.length > 0) {
+          const firstId = typeof data[0].id === 'number' ? data[0].id : 0;
+          const bucketStart = Math.floor(firstId / BUCKET_SIZE) * BUCKET_SIZE;
+          await setLatestPuzzleId('TrendingPuzzles', bucketStart);
+          await setCachedPuzzles('TrendingPuzzles', data);
+        }
+      } catch (e) {}
     })();
   }, []);
 

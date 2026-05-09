@@ -275,3 +275,27 @@ export async function clearChessImport() {
     emitTacticsRatingChanged({ rating: null, username: '' });
   } catch {}
 }
+
+const CACHE_KEYS = {
+  TrendingPuzzles: 'dd_cache_trending_puzzles',
+  PracticePuzzles: 'dd_cache_practice_puzzles',
+};
+
+export async function getCachedPuzzles(tableName) {
+  try {
+    const key = CACHE_KEYS[tableName];
+    if (!key) return null;
+    const raw = await AsyncStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setCachedPuzzles(tableName, data) {
+  try {
+    const key = CACHE_KEYS[tableName];
+    if (!key || !Array.isArray(data)) return;
+    await AsyncStorage.setItem(key, JSON.stringify(data));
+  } catch {}
+}

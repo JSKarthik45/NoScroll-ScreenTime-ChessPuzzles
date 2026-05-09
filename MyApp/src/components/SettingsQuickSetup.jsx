@@ -5,7 +5,8 @@ import { useThemeColors, useThemedStyles } from '../theme/ThemeContext';
 import { savePreferences, setBlocked as persistSetBlocked } from '../storage/preferences';
 
 const styleFactory = (colors) => StyleSheet.create({
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8, color: colors.text },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 4 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginLeft: 8 },
   card: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
@@ -17,7 +18,7 @@ const styleFactory = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
@@ -25,17 +26,18 @@ const styleFactory = (colors) => StyleSheet.create({
   rowLabel: { marginLeft: 12, fontSize: 16, color: colors.text },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap' },
   pill: {
-    paddingVertical: 3,
-    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
     borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: 10,
+    marginBottom: 10,
+    backgroundColor: colors.surface,
   },
   pillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  pillText: { color: colors.text },
-  pillTextActive: { color: '#fff', fontWeight: '600' },
+  pillText: { color: colors.text, fontSize: 15, fontWeight: '500' },
+  pillTextActive: { color: '#fff', fontWeight: '700' },
   helperText: { marginTop: 1, color: colors.muted },
 });
 
@@ -81,7 +83,10 @@ export default function SettingsQuickSetup({ blocked, setBlocked, problemTarget,
 
   return (
     <View>
-      <Text style={styles.sectionTitle}>Blocked Apps</Text>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="shield-outline" size={20} color={colors.text} />
+        <Text style={styles.sectionTitle}>Blocked Apps</Text>
+      </View>
       {SOCIAL_APPS.map((item) => {
         const isOn = !!(localBlocked && localBlocked[item.key]);
         return (
@@ -100,7 +105,10 @@ export default function SettingsQuickSetup({ blocked, setBlocked, problemTarget,
         );
       })}
 
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Daily Puzzle Goal</Text>
+      <View style={[styles.sectionHeader, { marginTop: 16 }]}>
+        <Ionicons name="extension-puzzle-outline" size={20} color={colors.text} />
+        <Text style={styles.sectionTitle}>Daily Puzzle Goal</Text>
+      </View>
       <View style={styles.pillRow}>
         {[1, 3, 5, 10, 20].map(n => {
           const active = problemTarget === n;

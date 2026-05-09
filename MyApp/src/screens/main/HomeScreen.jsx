@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, useThemedStyles } from '../../theme/ThemeContext';
 import BoardPager from '../../components/BoardPager';
 import { getPuzzlesData } from '../../services/getData';
-import { getLatestPuzzleId, setLatestPuzzleId, getBatchIndex, setBatchIndex, loadPreferences, setChessUsername as saveChessUsername, setChessTacticsRating, onTacticsRatingChanged } from '../../storage/preferences';
+import { getLatestPuzzleId, setLatestPuzzleId, getBatchIndex, setBatchIndex, loadPreferences, setChessUsername as saveChessUsername, setChessTacticsRating, onTacticsRatingChanged, getCachedPuzzles, setCachedPuzzles } from '../../storage/preferences';
 
 const styleFactory = (colors) => StyleSheet.create({
   container: { flex: 1, alignItems: 'stretch', justifyContent: 'center', paddingHorizontal: 0, paddingVertical: 0, backgroundColor: colors.background },
@@ -45,11 +45,13 @@ export default function HomeScreen({ mode = 'Trending' }) {
     let mounted = true;
     (async () => {
       try {
-        const [storedT, storedP, storedIdxT, storedIdxP] = await Promise.all([
+        const [storedT, storedP, storedIdxT, storedIdxP, cachedT, cachedP] = await Promise.all([
           getLatestPuzzleId('TrendingPuzzles'),
           getLatestPuzzleId('PracticePuzzles'),
           getBatchIndex('TrendingPuzzles'),
           getBatchIndex('PracticePuzzles'),
+          getCachedPuzzles('TrendingPuzzles'),
+          getCachedPuzzles('PracticePuzzles'),
         ]);
 
         let bucketT = (typeof storedT === 'number' && Number.isFinite(storedT)) ? storedT : null;
@@ -74,6 +76,18 @@ export default function HomeScreen({ mode = 'Trending' }) {
         // Persist the advanced index right away so repeated opens keep advancing
         try { if (storedT != null) setBatchIndex('TrendingPuzzles', nextIdxT); } catch {}
         try { if (storedP != null) setBatchIndex('PracticePuzzles', nextIdxP); } catch {}
+
+        // Optimistically render from cache if available
+        if (Array.isArray(cachedT) && cachedT.length > 0) {
+          setTrendBucketStart(bucketT);
+          setTrendData(cachedT);
+          setTrendInitialIndex(Math.min(nextIdxT, Math.max(0, cachedT.length - 1)));
+        }
+        if (Array.isArray(cachedP) && cachedP.length > 0) {
+          setPracticeBucketStart(bucketP);
+          setPracticeData(cachedP);
+          setPracticeInitialIndex(Math.min(nextIdxP, Math.max(0, cachedP.length - 1)));
+        }
 
         let [t, p] = await Promise.all([
           getPuzzlesData('TrendingPuzzles', PAGE_SIZE, bucketT, BUCKET_SIZE),
@@ -108,9 +122,14 @@ export default function HomeScreen({ mode = 'Trending' }) {
 
         setTrendBucketStart(effectiveBucketT);
         setPracticeBucketStart(effectiveBucketP);
+        
+        // Only update state if we didn't have a cache, or if we want to ensure latest data
         setTrendData(tArr);
         setPracticeData(pArr);
+        setCachedPuzzles('TrendingPuzzles', tArr);
+        setCachedPuzzles('PracticePuzzles', pArr);
         
+        // Re-clamp initial index with the potentially updated arrays
         setTrendInitialIndex(Math.min(nextIdxT, Math.max(0, tArr.length - 1)));
         setPracticeInitialIndex(Math.min(nextIdxP, Math.max(0, pArr.length - 1)));
       } catch {}
@@ -165,7 +184,9 @@ export default function HomeScreen({ mode = 'Trending' }) {
           const nextBucketStart = trendBucketStart + BUCKET_SIZE;
           const nextBatch = await getPuzzlesData('TrendingPuzzles', PAGE_SIZE, nextBucketStart);
           if (Array.isArray(nextBatch) && nextBatch.length > 0) {
-            setTrendData((prev) => [...prev, ...nextBatch]);
+            const nextArray = [...trendData, ...nextBatch];
+            setTrendData(nextArray);
+            setCachedPuzzles('TrendingPuzzles', nextArray);
             setTrendPrefetchedNext(true);
           }
           return;
@@ -174,7 +195,9 @@ export default function HomeScreen({ mode = 'Trending' }) {
         // After initial 10 are completed (index >= 10) and we have prefetched, drop first 10 and advance bucket
         if (trendPrefetchedNext && currentLength > PAGE_SIZE && index >= PAGE_SIZE) {
           const newBucketStart = trendBucketStart + BUCKET_SIZE;
-          setTrendData((prev) => prev.slice(PAGE_SIZE));
+          const nextArray = trendData.slice(PAGE_SIZE);
+          setTrendData(nextArray);
+          setCachedPuzzles('TrendingPuzzles', nextArray);
           setTrendBucketStart(newBucketStart);
           setTrendPrefetchedNext(false);
           // Persist so next session starts from the new bucket range
@@ -192,7 +215,9 @@ export default function HomeScreen({ mode = 'Trending' }) {
           const nextBucketStart = practiceBucketStart + BUCKET_SIZE;
           const nextBatch = await getPuzzlesData('PracticePuzzles', PAGE_SIZE, nextBucketStart);
           if (Array.isArray(nextBatch) && nextBatch.length > 0) {
-            setPracticeData((prev) => [...prev, ...nextBatch]);
+            const nextArray = [...practiceData, ...nextBatch];
+            setPracticeData(nextArray);
+            setCachedPuzzles('PracticePuzzles', nextArray);
             setPracticePrefetchedNext(true);
           }
           return;
@@ -200,7 +225,9 @@ export default function HomeScreen({ mode = 'Trending' }) {
 
         if (practicePrefetchedNext && currentLength > PAGE_SIZE && index >= PAGE_SIZE) {
           const newBucketStart = practiceBucketStart + BUCKET_SIZE;
-          setPracticeData((prev) => prev.slice(PAGE_SIZE));
+          const nextArray = practiceData.slice(PAGE_SIZE);
+          setPracticeData(nextArray);
+          setCachedPuzzles('PracticePuzzles', nextArray);
           setPracticeBucketStart(newBucketStart);
           setPracticePrefetchedNext(false);
           setLatestPuzzleId('PracticePuzzles', newBucketStart);
