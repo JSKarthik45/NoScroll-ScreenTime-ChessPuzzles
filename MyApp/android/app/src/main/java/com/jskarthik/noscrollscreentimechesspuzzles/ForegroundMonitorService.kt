@@ -109,10 +109,29 @@ class ForegroundMonitorService : Service() {
     val prefs = getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
 
     // Check if blocking is currently enabled
-    val blockingEnabled = prefs.getBoolean("blocking_enabled", false)
+    var blockingEnabled = prefs.getBoolean("blocking_enabled", false)
+    
+    // --- Safety net: new-day detection ---
+    // If blocking is disabled (e.g. goal was completed yesterday) but it's now
+    // a new day, automatically re-enable blocking. This catches cases where the
+    // midnight alarm or boot receiver didn't fire.
     if (!blockingEnabled) {
-      lastEventTime = endTime
-      return
+      val storedDateCheck = prefs.getString("today_date", null)
+      val todayCheck = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+      if (storedDateCheck != null && storedDateCheck != todayCheck) {
+        // It's a new day — reset count and re-enable blocking
+        prefs.edit()
+          .putString("today_date", todayCheck)
+          .putInt("today_count", 0)
+          .putBoolean("blocking_enabled", true)
+          .apply()
+        blockingEnabled = true
+        // Re-schedule midnight alarm as well
+        MidnightResetReceiver.scheduleMidnightAlarm(this)
+      } else {
+        lastEventTime = endTime
+        return
+      }
     }
 
     // Daily goal and today's progress

@@ -48,17 +48,21 @@
     <!-- Receiver to restart blocking service after device reboot -->
     <receiver
       android:name=".BootReceiver"
-      android:exported="false"
-      android:enabled="true">
+      android:exported="true"
+      android:enabled="true"
+      android:directBootAware="true">
       <intent-filter>
         <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+        <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+        <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
       </intent-filter>
     </receiver>
     
     <!-- Receiver to reset blocking at midnight each day -->
     <receiver
       android:name=".MidnightResetReceiver"
-      android:exported="false"
+      android:exported="true"
       android:enabled="true" />
   </application>
 </manifest>

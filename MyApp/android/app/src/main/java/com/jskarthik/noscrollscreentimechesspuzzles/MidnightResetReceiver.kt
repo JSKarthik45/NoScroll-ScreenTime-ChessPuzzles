@@ -6,11 +6,19 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /**
  * BroadcastReceiver that fires at midnight to reset blocking for the new day.
  * When triggered, it clears the daily puzzle count and re-enables blocking.
+ *
+ * Key fix: stores today_date so that the new-day detection in other components
+ * (BootReceiver, ForegroundMonitorService, resumeMonitoring) works correctly.
+ * Also falls back to inexact alarms on Android 12+ when SCHEDULE_EXACT_ALARM
+ * permission is not granted.
  */
 class MidnightResetReceiver : BroadcastReceiver() {
     
@@ -24,9 +32,12 @@ class MidnightResetReceiver : BroadcastReceiver() {
             return
         }
         
+        // Get today's date string
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        
         // Reset today's count and enable blocking for the new day
         prefs.edit()
-            .remove("today_date")
+            .putString("today_date", today)
             .putInt("today_count", 0)
             .putBoolean("blocking_enabled", true)
             .apply()
@@ -48,6 +59,8 @@ class MidnightResetReceiver : BroadcastReceiver() {
         
         /**
          * Schedule an alarm to fire at the next midnight (00:00:00).
+         * On Android 12+ (API 31+), falls back to inexact alarms if the
+         * SCHEDULE_EXACT_ALARM permission has not been granted by the user.
          */
         fun scheduleMidnightAlarm(context: Context) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -69,17 +82,35 @@ class MidnightResetReceiver : BroadcastReceiver() {
                 set(Calendar.MILLISECOND, 0)
             }
             
-            // Use setExactAndAllowWhileIdle for reliable delivery on newer Android versions
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val triggerAtMillis = calendar.timeInMillis
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // Android 12+ (API 31): exact alarms require runtime permission
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtMillis,
+                        pendingIntent
+                    )
+                } else {
+                    // Fallback: inexact alarm — may fire a few minutes after midnight
+                    // but the ForegroundMonitorService safety net will also catch new-day
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtMillis,
+                        pendingIntent
+                    )
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
+                    triggerAtMillis,
                     pendingIntent
                 )
             } else {
                 alarmManager.setExact(
                     AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
+                    triggerAtMillis,
                     pendingIntent
                 )
             }
