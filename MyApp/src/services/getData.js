@@ -28,127 +28,164 @@ function mapRowsFromPuzzles(rows) {
 
 export async function getPuzzlesData(tableName, limit = 10, rangeStart = null, rangeSize = DEFAULT_BUCKET_SIZE) {
     try {
-        const hasRange = typeof rangeStart === 'number' && Number.isFinite(rangeStart);
         const bucketSize = (typeof rangeSize === 'number' && Number.isFinite(rangeSize) && rangeSize > 0) ? rangeSize : DEFAULT_BUCKET_SIZE;
-        let currentStart = hasRange ? rangeStart : null;
+        let currentStart = (typeof rangeStart === 'number' && Number.isFinite(rangeStart)) ? rangeStart : null;
 
         if (tableName === 'TrendingPuzzles') {
+            if (currentStart == null) {
+                const { data: minData } = await supabase.from('Puzzles').select('id').order('id', { ascending: true }).limit(1);
+                if (minData && minData.length > 0) {
+                    currentStart = Math.floor(minData[0].id / bucketSize) * bucketSize;
+                } else {
+                    return [];
+                }
+            }
+
             let hops = 0;
             do {
-                const lowerId = typeof currentStart === 'number' && Number.isFinite(currentStart) ? currentStart : null;
-                const upperId = typeof lowerId === 'number' ? lowerId + bucketSize : null;
+                const lowerId = currentStart;
+                const upperId = currentStart + bucketSize;
 
-                let q = supabase
+                const { data, error } = await supabase
                     .from('Puzzles')
-                    .select(SELECT_COLUMNS);
-
-                if (lowerId != null && upperId != null) {
-                    q = q.gte('id', lowerId).lt('id', upperId);
-                }
-
-                q = q
+                    .select(SELECT_COLUMNS)
+                    .gte('id', lowerId)
+                    .lt('id', upperId)
                     .order('popularity', { ascending: false })
                     .order('id', { ascending: true })
                     .limit(limit);
 
-                const { data, error } = await q;
                 if (error) throw error;
                 if (Array.isArray(data) && data.length > 0) {
                     return mapRowsFromPuzzles(data);
                 }
 
-                if (currentStart == null) {
+                const { data: nextData } = await supabase
+                    .from('Puzzles')
+                    .select('id')
+                    .gte('id', upperId)
+                    .order('id', { ascending: true })
+                    .limit(1);
+
+                if (nextData && nextData.length > 0) {
+                    currentStart = Math.floor(nextData[0].id / bucketSize) * bucketSize;
+                } else {
                     break;
                 }
-
-                currentStart += bucketSize;
                 hops += 1;
             } while (hops <= MAX_BUCKET_HOPS);
+
         } else if (tableName === 'PracticePuzzles') {
             const prefs = await loadPreferences();
             const rating = (typeof prefs?.chessTacticsRating === 'number' && Number.isFinite(prefs.chessTacticsRating))
                 ? prefs.chessTacticsRating
                 : 1500;
 
-            if (!hasRange) {
-                let q = supabase
+            if (currentStart == null) {
+                const { data: minData } = await supabase
                     .from('Puzzles')
-                    .select(SELECT_COLUMNS)
+                    .select('id')
                     .lte('lowestRating', rating)
                     .gte('highestRating', rating)
                     .order('id', { ascending: true })
-                    .limit(limit);
-
-                const { data, error } = await q;
-                if (error) throw error;
-                if (Array.isArray(data) && data.length > 0) {
-                    return mapRowsFromPuzzles(data);
-                }
-            } else {
-                let hops = 0;
-                let collected = [];
-
-                while (
-                    typeof currentStart === 'number' &&
-                    Number.isFinite(currentStart) &&
-                    collected.length < limit &&
-                    hops <= MAX_BUCKET_HOPS
-                ) {
-                    const lowerId = currentStart;
-                    const upperId = currentStart + bucketSize;
-
-                    let q = supabase
-                        .from('Puzzles')
-                        .select(SELECT_COLUMNS)
-                        .gte('id', lowerId).lt('id', upperId)
-                        .lte('lowestRating', rating)
-                        .gte('highestRating', rating)
-                        .order('id', { ascending: true })
-                        .limit(limit - collected.length);
-
-                    const { data, error } = await q;
-                    if (error) throw error;
-                    if (Array.isArray(data) && data.length > 0) {
-                        collected = collected.concat(data);
-                    }
-
-                    currentStart += bucketSize;
-                    hops += 1;
-                }
-
-                if (collected.length > 0) {
-                    return mapRowsFromPuzzles(collected.slice(0, limit));
+                    .limit(1);
+                
+                if (minData && minData.length > 0) {
+                    currentStart = Math.floor(minData[0].id / bucketSize) * bucketSize;
+                } else {
+                    return [];
                 }
             }
-        } else {
+
             let hops = 0;
-            do {
-                const lowerId = typeof currentStart === 'number' && Number.isFinite(currentStart) ? currentStart : null;
-                const upperId = typeof lowerId === 'number' ? lowerId + bucketSize : null;
+            let collected = [];
 
-                let q = supabase
+            while (
+                typeof currentStart === 'number' &&
+                Number.isFinite(currentStart) &&
+                collected.length < limit &&
+                hops <= MAX_BUCKET_HOPS
+            ) {
+                const lowerId = currentStart;
+                const upperId = currentStart + bucketSize;
+
+                const { data, error } = await supabase
                     .from('Puzzles')
-                    .select(SELECT_COLUMNS);
+                    .select(SELECT_COLUMNS)
+                    .gte('id', lowerId)
+                    .lt('id', upperId)
+                    .lte('lowestRating', rating)
+                    .gte('highestRating', rating)
+                    .order('id', { ascending: true })
+                    .limit(limit - collected.length);
 
-                if (lowerId != null && upperId != null) {
-                    q = q.gte('id', lowerId).lt('id', upperId);
+                if (error) throw error;
+                if (Array.isArray(data) && data.length > 0) {
+                    collected = collected.concat(data);
                 }
 
-                q = q
+                if (collected.length >= limit) break;
+
+                const { data: nextData } = await supabase
+                    .from('Puzzles')
+                    .select('id')
+                    .gte('id', upperId)
+                    .lte('lowestRating', rating)
+                    .gte('highestRating', rating)
+                    .order('id', { ascending: true })
+                    .limit(1);
+
+                if (nextData && nextData.length > 0) {
+                    currentStart = Math.floor(nextData[0].id / bucketSize) * bucketSize;
+                } else {
+                    break;
+                }
+                hops += 1;
+            }
+
+            if (collected.length > 0) {
+                return mapRowsFromPuzzles(collected.slice(0, limit));
+            }
+        } else {
+            if (currentStart == null) {
+                const { data: minData } = await supabase.from('Puzzles').select('id').order('id', { ascending: true }).limit(1);
+                if (minData && minData.length > 0) {
+                    currentStart = Math.floor(minData[0].id / bucketSize) * bucketSize;
+                } else {
+                    return [];
+                }
+            }
+
+            let hops = 0;
+            do {
+                const lowerId = currentStart;
+                const upperId = currentStart + bucketSize;
+
+                const { data, error } = await supabase
+                    .from('Puzzles')
+                    .select(SELECT_COLUMNS)
+                    .gte('id', lowerId)
+                    .lt('id', upperId)
                     .order('id', { ascending: true })
                     .limit(limit);
 
-                const { data, error } = await q;
                 if (error) throw error;
                 if (Array.isArray(data) && data.length > 0) {
                     return mapRowsFromPuzzles(data);
                 }
 
-                if (currentStart == null) {
+                const { data: nextData } = await supabase
+                    .from('Puzzles')
+                    .select('id')
+                    .gte('id', upperId)
+                    .order('id', { ascending: true })
+                    .limit(1);
+
+                if (nextData && nextData.length > 0) {
+                    currentStart = Math.floor(nextData[0].id / bucketSize) * bucketSize;
+                } else {
                     break;
                 }
-
-                currentStart += bucketSize;
                 hops += 1;
             } while (hops <= MAX_BUCKET_HOPS);
         }

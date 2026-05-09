@@ -52,10 +52,28 @@ export default function HomeScreen({ mode = 'Trending' }) {
           getBatchIndex('PracticePuzzles'),
         ]);
 
-        // Use stored bucket if available, otherwise fetch without a range window
-        // so we don't waste hops guessing an arbitrary starting ID.
-        const bucketT = (typeof storedT === 'number' && Number.isFinite(storedT)) ? storedT : null;
-        const bucketP = (typeof storedP === 'number' && Number.isFinite(storedP)) ? storedP : null;
+        let bucketT = (typeof storedT === 'number' && Number.isFinite(storedT)) ? storedT : null;
+        let bucketP = (typeof storedP === 'number' && Number.isFinite(storedP)) ? storedP : null;
+
+        // Auto-advance index on app reopen so the user always sees a fresh puzzle
+        let nextIdxT = storedT != null ? (storedIdxT || 0) + 1 : 0;
+        let nextIdxP = storedP != null ? (storedIdxP || 0) + 1 : 0;
+
+        // Advance to next bucket if we've exhausted the current batch
+        if (bucketT != null && nextIdxT >= PAGE_SIZE) {
+          bucketT += BUCKET_SIZE;
+          nextIdxT = 0;
+          try { setLatestPuzzleId('TrendingPuzzles', bucketT); } catch {}
+        }
+        if (bucketP != null && nextIdxP >= PAGE_SIZE) {
+          bucketP += BUCKET_SIZE;
+          nextIdxP = 0;
+          try { setLatestPuzzleId('PracticePuzzles', bucketP); } catch {}
+        }
+
+        // Persist the advanced index right away so repeated opens keep advancing
+        try { if (storedT != null) setBatchIndex('TrendingPuzzles', nextIdxT); } catch {}
+        try { if (storedP != null) setBatchIndex('PracticePuzzles', nextIdxP); } catch {}
 
         let [t, p] = await Promise.all([
           getPuzzlesData('TrendingPuzzles', PAGE_SIZE, bucketT, BUCKET_SIZE),
@@ -72,8 +90,6 @@ export default function HomeScreen({ mode = 'Trending' }) {
 
         if (!mounted) return;
 
-        // Derive the actual bucket start from the first returned puzzle's id,
-        // rounded down to the nearest BUCKET_SIZE boundary.
         const tArr = Array.isArray(t) ? t : [];
         const pArr = Array.isArray(p) ? p : [];
         const deriveBucket = (items) => {
@@ -83,7 +99,6 @@ export default function HomeScreen({ mode = 'Trending' }) {
         const effectiveBucketT = bucketT ?? deriveBucket(tArr);
         const effectiveBucketP = bucketP ?? deriveBucket(pArr);
 
-        // Persist derived bucket so future sessions start from here
         if (storedT == null && tArr.length > 0) {
           try { setLatestPuzzleId('TrendingPuzzles', effectiveBucketT); } catch {}
         }
@@ -95,9 +110,9 @@ export default function HomeScreen({ mode = 'Trending' }) {
         setPracticeBucketStart(effectiveBucketP);
         setTrendData(tArr);
         setPracticeData(pArr);
-        // Set the initial index within the batch (clamped to data length)
-        setTrendInitialIndex(Math.min(storedIdxT || 0, Math.max(0, tArr.length - 1)));
-        setPracticeInitialIndex(Math.min(storedIdxP || 0, Math.max(0, pArr.length - 1)));
+        
+        setTrendInitialIndex(Math.min(nextIdxT, Math.max(0, tArr.length - 1)));
+        setPracticeInitialIndex(Math.min(nextIdxP, Math.max(0, pArr.length - 1)));
       } catch {}
     })();
     return () => { mounted = false; };
