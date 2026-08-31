@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { View, NativeModules, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppNavigator from './src/navigation/AppNavigator';
 import OnboardingNavigator from './src/navigation/OnboardingNavigator';
@@ -7,24 +6,17 @@ import { OnboardingContext } from './src/navigation/OnboardingContext';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { loadPreferences } from './src/storage/preferences';
 import { setThemePrimarySecondary } from './src/theme/colors';
-import { ThemeProvider, useThemeColors, useThemeController } from './src/theme/ThemeContext';
+import { ThemeProvider, useThemeColors } from './src/theme/ThemeContext';
 
-import getPuzzlesData from './src/services/getData';
-
-const { PermissionModule } = NativeModules || {};
-
-// Toggle to force showing onboarding in development
-// Set to true during development to always see onboarding
-const SHOW_ONBOARDING_ALWAYS = false;
+// Development toggle: set to true to skip onboarding while testing.
+const DEV_SKIP_ONBOARDING = false;
 
 const ONBOARDING_KEY = 'hasOnboarded';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [hasOnboarded, setHasOnboarded] = useState(false);
-  // In dev, start in onboarding even if stored as completed,
-  // but allow switching to app after finishing within the session.
-  const [devSessionOnboarding, setDevSessionOnboarding] = useState(SHOW_ONBOARDING_ALWAYS);
+  const skipOnboardingForTesting = __DEV__ && DEV_SKIP_ONBOARDING;
 
   const [initialTheme, setInitialTheme] = useState(null);
 
@@ -32,26 +24,12 @@ export default function App() {
     const init = async () => {
       try {
         const value = await AsyncStorage.getItem(ONBOARDING_KEY);
-        setHasOnboarded(value === 'true');
+        const onboarded = value === 'true';
+        setHasOnboarded(onboarded);
         const prefs = await loadPreferences();
         if (prefs.theme) {
           setThemePrimarySecondary(prefs.theme.primary, prefs.theme.secondary);
           setInitialTheme(prefs.theme);
-        }
-        
-        // If user has onboarded and on Android, ensure midnight alarm is scheduled
-        // and check if blocking should be enabled for today
-        if (value === 'true' && Platform.OS === 'android' && PermissionModule) {
-          // Schedule midnight reset alarm (idempotent - updates existing alarm)
-          if (typeof PermissionModule.scheduleMidnightReset === 'function') {
-            PermissionModule.scheduleMidnightReset();
-          }
-          
-          // Resume monitoring - this respects current blocking state
-          // and resets blocking if it's a new day
-          if (typeof PermissionModule.resumeMonitoring === 'function') {
-            PermissionModule.resumeMonitoring();
-          }
         }
       } catch (e) {
         setHasOnboarded(false);
@@ -67,16 +45,13 @@ export default function App() {
     return null;
   }
 
-  // In development, start with onboarding but allow exit on completion
-  const showOnboarding = devSessionOnboarding ? true : !hasOnboarded;
+  const showOnboarding = skipOnboardingForTesting ? false : !hasOnboarded;
 
   const completeOnboarding = async () => {
     try {
       await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
     } finally {
       setHasOnboarded(true);
-      // End dev-only onboarding for this session so app shows after completion
-      setDevSessionOnboarding(false);
     }
   };
 

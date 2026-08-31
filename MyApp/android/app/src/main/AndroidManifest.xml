@@ -62,7 +62,7 @@
     <!-- Receiver to reset blocking at midnight each day -->
     <receiver
       android:name=".MidnightResetReceiver"
-      android:exported="true"
+      android:exported="false"
       android:enabled="true" />
   </application>
 </manifest>

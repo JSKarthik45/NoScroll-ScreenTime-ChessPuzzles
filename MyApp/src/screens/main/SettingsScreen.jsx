@@ -12,8 +12,8 @@ const { PermissionModule } = NativeModules || {};
 const styleFactory = (colors) => StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 0 },
   scrollContent: { paddingBottom: 8 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 4 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginLeft: 8 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 6 },
+  sectionTitle: { fontSize: 19, fontWeight: '700', color: colors.text, marginLeft: 8 },
   sectionSubtitle: { fontSize: 13, color: colors.muted, marginBottom: 8, marginLeft: 28 },
   listContent: { paddingVertical: 3 },
   row: {
@@ -254,7 +254,7 @@ export default function SettingsScreen() {
     <>
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <View style={styles.sectionHeader}>
-        <Ionicons name="shield-outline" size={20} color={colors.text} />
+        <Ionicons name="shield-checkmark" size={21} color={colors.primary} />
         <Text style={styles.sectionTitle}>Blocked Apps</Text>
       </View>
       {SOCIAL_APPS.map((item) => {
@@ -289,7 +289,7 @@ export default function SettingsScreen() {
       )}
 
       <View style={styles.sectionHeader}>
-        <Ionicons name="extension-puzzle-outline" size={20} color={colors.text} />
+        <Ionicons name="extension-puzzle-outline" size={21} color={colors.primary} />
         <Text style={styles.sectionTitle}>Daily Puzzle Goal</Text>
       </View>
       <View style={styles.pillRow}>
@@ -304,7 +304,7 @@ export default function SettingsScreen() {
       </View>
       <Text style={styles.helperText}>Selected social media apps will be blocked until you solve your daily goal of {problemTarget} puzzles.</Text>
       <View style={styles.sectionHeader}>
-        <Ionicons name="stats-chart-outline" size={20} color={colors.text} />
+        <Ionicons name="stats-chart-outline" size={21} color={colors.primary} />
         <Text style={styles.sectionTitle}>Tactics Rating</Text>
       </View>
       {tacticsRating != null ? (
@@ -335,7 +335,7 @@ export default function SettingsScreen() {
       )}
 
       <View style={styles.sectionHeader}>
-        <Ionicons name="color-palette-outline" size={20} color={colors.text} />
+        <Ionicons name="color-palette-outline" size={21} color={colors.primary} />
         <Text style={styles.sectionTitle}>Theme</Text>
       </View>
       <View style={styles.themeRow}>
@@ -348,7 +348,7 @@ export default function SettingsScreen() {
                 <View style={[styles.swatch, { backgroundColor: opt.secondary }]} />
               </View>
               <Text style={styles.themeLabel}>{opt.label}</Text>
-              {active && <Ionicons name="checkmark-circle" size={20} color={colors.primary} style={{ marginLeft: 6 }} />}
+              {active && <Ionicons name="checkmark-circle" size={21} color={colors.primary} style={{ marginLeft: 6 }} />}
             </Pressable>
           );
         })}
@@ -357,13 +357,12 @@ export default function SettingsScreen() {
       {Platform.OS === 'android' && (
         <>
           <View style={styles.sectionHeader}>
-            <Ionicons name={monitoringEnabled ? 'shield-checkmark' : 'shield-outline'} size={20} color={colors.text} />
+            <Ionicons name={monitoringEnabled ? 'shield-checkmark' : 'shield-outline'} size={21} color={colors.primary} />
             <Text style={styles.sectionTitle}>Blocking Status</Text>
           </View>
           <View style={styles.row}>
             <View style={styles.rowLeft}>
-              <Ionicons name={monitoringEnabled ? 'shield-checkmark' : 'shield-outline'} size={28} color={monitoringEnabled ? colors.primary : colors.muted} />
-              <Text style={styles.rowLabel}>{monitoringEnabled ? 'Blocking active' : 'Blocking paused'}</Text>
+              <Text style={styles.rowLabel}>{monitoringEnabled ? 'Active' : 'Paused'}</Text>
             </View>
             <Switch
               value={monitoringEnabled}
@@ -381,36 +380,36 @@ export default function SettingsScreen() {
       )}
 
       <View style={styles.sectionHeader}>
-        <Ionicons name="apps-outline" size={20} color={colors.text} />
+        <Ionicons name="apps-outline" size={21} color={colors.primary} />
         <Text style={styles.sectionTitle}>More from us</Text>
       </View>
       <View style={styles.linkList}>
         <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech')}>
           <Ionicons name="planet" size={22} color={colors.text} />
           <Text style={styles.linkLabel}>Clutch Chess</Text>
-          <Ionicons name="open-outline" size={20} color={colors.muted} style={styles.linkIconRight} />
+          <Ionicons name="open-outline" size={21} color={colors.muted} style={styles.linkIconRight} />
         </Pressable>
         <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.velacherychessacademy.com')}>
           <Ionicons name="school" size={22} color={colors.text} />
           <Text style={styles.linkLabel}>Velachery Chess Academy</Text>
-          <Ionicons name="open-outline" size={20} color={colors.muted} style={styles.linkIconRight} />
+          <Ionicons name="open-outline" size={21} color={colors.muted} style={styles.linkIconRight} />
         </Pressable>
       </View>
 
       <View style={styles.sectionHeader}>
-        <Ionicons name="document-text-outline" size={20} color={colors.text} />
+        <Ionicons name="document-text-outline" size={21} color={colors.primary} />
         <Text style={styles.sectionTitle}>Legal</Text>
       </View>
       <View style={styles.linkList}>
         <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech/noscroll-privacy')}>
           <Ionicons name="lock-closed-outline" size={22} color={colors.text} />
           <Text style={styles.linkLabel}>Privacy Policy</Text>
-          <Ionicons name="open-outline" size={20} color={colors.muted} style={styles.linkIconRight} />
+          <Ionicons name="open-outline" size={21} color={colors.muted} style={styles.linkIconRight} />
         </Pressable>
         <Pressable style={styles.linkRow} onPress={() => Linking.openURL('https://www.clutchess.tech/noscroll-terms')}>
           <Ionicons name="document-text-outline" size={22} color={colors.text} />
           <Text style={styles.linkLabel}>Terms of Service</Text>
-          <Ionicons name="open-outline" size={20} color={colors.muted} style={styles.linkIconRight} />
+          <Ionicons name="open-outline" size={21} color={colors.muted} style={styles.linkIconRight} />
         </Pressable>
       </View>
 

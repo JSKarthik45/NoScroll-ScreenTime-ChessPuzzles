@@ -3,6 +3,7 @@ package com.jskarthik.noscrollscreentimechesspuzzles
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.Service
 import android.app.usage.UsageEvents
@@ -14,6 +15,7 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
+import android.os.SystemClock
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import android.content.pm.ServiceInfo
@@ -82,6 +84,31 @@ class ForegroundMonitorService : Service() {
     isRunning = false
     handler.removeCallbacksAndMessages(null)
     try { unregisterReceiver(stopReceiver) } catch (_: Exception) {}
+  }
+
+  override fun onTaskRemoved(rootIntent: Intent?) {
+    super.onTaskRemoved(rootIntent)
+
+    try {
+      val prefs = getSharedPreferences("ChessBlockerPrefs", Context.MODE_PRIVATE)
+      if (!prefs.getBoolean("blocking_enabled", false)) return
+
+      val restartIntent = Intent(applicationContext, ForegroundMonitorService::class.java)
+      val pendingIntent = PendingIntent.getService(
+        applicationContext,
+        2001,
+        restartIntent,
+        PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+      )
+
+      val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+      alarmManager.setExactAndAllowWhileIdle(
+        AlarmManager.ELAPSED_REALTIME_WAKEUP,
+        SystemClock.elapsedRealtime() + 1000L,
+        pendingIntent
+      )
+    } catch (_: Exception) {
+    }
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
